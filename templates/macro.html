@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PTJ Macro Analogue Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --bg:        #0d0f12;
+      --surface:   #13161b;
+      --surface2:  #1a1e25;
+      --border:    #22272f;
+      --border2:   #2e3540;
+      --text:      #e2e6ed;
+      --muted:     #5a6478;
+      --subtle:    #8896aa;
+      --green:     #2ecc8a;
+      --green-dim: #1a4a35;
+      --red:       #e05555;
+      --red-dim:   #4a1f1f;
+      --amber:     #f0a040;
+      --amber-dim: #3d2a10;
+      --blue:      #4a9eff;
+      --blue-dim:  #0f2a4a;
+      --radius:    8px;
+      --mono:      'DM Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+
+      /* Analogue palette — current + 3 analogues + their forward tails */
+      --c0:   #4a9eff;   /* current — blue */
+      --c1:   #f0a040;   /* analogue 1 — amber */
+      --c2:   #2ecc8a;   /* analogue 2 — green */
+      --c3:   #b57aff;   /* analogue 3 — purple */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 500;
+    }
+    header h1 .accent { color: var(--amber); }
+    .header-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+    .header-links { margin-left: auto; display: flex; gap: 16px; }
+    .header-link {
+      font-size: 12px;
+      color: var(--blue);
+      font-family: var(--mono);
+      text-decoration: none;
+    }
+    .header-link:hover { text-decoration: underline; }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .window-select {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 9px 12px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .window-select:focus { border-color: var(--blue); }
+
+    .btn {
+      padding: 10px 22px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--amber); color: #1a0f00; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .data-freshness {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Status ── */
+    .status-bar {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 24px;
+      min-height: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .spinner {
+      width: 12px; height: 12px;
+      border: 1.5px solid var(--border2);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Chart panel ── */
+    .chart-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .chart-panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 16px;
+    }
+    .chart-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .chart-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-top: 3px;
+    }
+
+    /* Legend pills */
+    .legend-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .legend-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--subtle);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-pill.current { border-color: rgba(255,255,255,0.3); }
+    .legend-pill.a1      { border-color: rgba(240,160,64,0.4); }
+    .legend-pill.a2      { border-color: rgba(46,204,138,0.4); }
+    .legend-pill.a3      { border-color: rgba(181,122,255,0.4); }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 420px;
+    }
+
+    /* Divider line marking "today" */
+    .today-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    /* ── Analogue cards ── */
+    .cards-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .analogue-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .analogue-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      animation: fadeUp 0.4s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .analogue-card:nth-child(1) { animation-delay: 0.05s; }
+    .analogue-card:nth-child(2) { animation-delay: 0.10s; }
+    .analogue-card:nth-child(3) { animation-delay: 0.15s; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .card-rank {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .rank-1 { background: rgba(240,160,64,0.15); color: var(--amber); border: 1px solid rgba(240,160,64,0.3); }
+    .rank-2 { background: rgba(46,204,138,0.12); color: var(--green); border: 1px solid rgba(46,204,138,0.25); }
+    .rank-3 { background: rgba(181,122,255,0.12); color: #b57aff;     border: 1px solid rgba(181,122,255,0.25); }
+
+    .sim-badge {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .card-dates {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .fwd-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .fwd-cell {
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .fwd-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .fwd-value {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .up   { color: var(--green); }
+    .down { color: var(--red); }
+    .neu  { color: var(--muted); }
+    .amb  { color: var(--amber); }
+
+    /* ── Interpretation panel ── */
+    .interp-panel {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 32px;
+      animation: fadeUp 0.4s ease 0.2s both;
+    }
+    .interp-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .interp-icon {
+      font-size: 16px;
+    }
+    .interp-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .interp-returns {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .ret-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .ret-horizon {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .ret-value {
+      font-family: var(--mono);
+      font-size: 24px;
+      font-weight: 500;
+    }
+    .interp-text {
+      font-size: 13px;
+      color: var(--subtle);
+      line-height: 1.7;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+
+    /* ── Warning ── */
+    .warning {
+      background: #1a150a;
+      border: 1px solid #3a2a10;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #a07030;
+      font-family: var(--mono);
+      margin-bottom: 32px;
+    }
+
+    /* ── Empty state ── */
+    /* -- Regime score bars (Phase 2) ------------------------------------------- */
+    .score-row   { display:flex; flex-direction:column; gap:6px; }
+    .score-item  { display:flex; align-items:center; gap:8px; }
+    .score-label { font-family:var(--mono); font-size:10px; color:var(--muted);
+                   width:90px; flex-shrink:0; }
+    .score-bar-wrap { flex:1; height:4px; background:var(--border2); border-radius:2px; }
+    .score-bar-fill { height:4px; border-radius:2px; }
+    .score-val   { font-family:var(--mono); font-size:11px; width:42px;
+                   text-align:right; flex-shrink:0; }
+
+    /* -- Macro snapshot inside each card --------------------------------------- */
+    .macro-snap  { border-top:1px solid var(--border); padding-top:10px; }
+    .snap-title  { font-family:var(--mono); font-size:10px; color:var(--muted);
+                   text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+    .snap-grid   { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .snap-cell   { background:var(--bg); border-radius:6px; padding:6px 8px; }
+    .snap-label  { font-family:var(--mono); font-size:9px; color:var(--muted);
+                   text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+    .snap-val    { font-family:var(--mono); font-size:13px; font-weight:500; }
+    .snap-sub    { font-family:var(--mono); font-size:9px; color:var(--muted); margin-top:1px; }
+
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    /* -- Phase 3: Sector rotation panel --------------------------------------- */
+    .sector-panel { background:var(--surface); border:1px solid var(--border);
+                    border-radius:var(--radius); padding:24px; margin-bottom:24px; }
+    .sector-panel-header { display:flex; align-items:center; justify-content:space-between;
+                           margin-bottom:20px; gap:16px; }
+    .sector-panel-title { font-family:var(--mono); font-size:13px; font-weight:500; }
+    .sector-panel-sub { font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:3px; }
+
+    .sector-run-btn { padding:9px 20px; border-radius:var(--radius); border:none;
+                      font-family:var(--sans); font-size:13px; font-weight:500;
+                      cursor:pointer; background:var(--amber); color:#1a0f00;
+                      transition:opacity .15s; white-space:nowrap; }
+    .sector-run-btn:hover { opacity:.88; }
+    .sector-run-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+    .sector-grid { display:flex; flex-direction:column; gap:8px; }
+
+    .sector-row { display:grid; grid-template-columns:140px 1fr 90px 90px 90px 110px;
+                  gap:12px; align-items:center; padding:12px 14px;
+                  background:var(--surface2); border-radius:6px;
+                  border:1px solid var(--border); cursor:pointer;
+                  transition:border-color .15s; }
+    .sector-row:hover { border-color:var(--border2); }
+    .sector-row.top-sector { border-color:rgba(46,204,138,0.3);
+                              background:rgba(46,204,138,0.04); }
+
+    .sector-name { font-family:var(--mono); font-size:12px; font-weight:500; }
+    .sector-etf  { font-size:10px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
+
+    .sector-bar-wrap { display:flex; align-items:center; gap:8px; }
+    .sector-bar-bg   { flex:1; height:6px; background:var(--border2); border-radius:3px; }
+    .sector-bar-fill { height:6px; border-radius:3px; }
+
+    .sector-stat { font-family:var(--mono); font-size:12px; text-align:right; }
+    .sector-consistency { display:flex; gap:4px; justify-content:flex-end; }
+    .cons-dot { width:8px; height:8px; border-radius:50%; }
+
+    .sector-header-row { display:grid;
+                         grid-template-columns:140px 1fr 90px 90px 90px 110px;
+                         gap:12px; padding:6px 14px; margin-bottom:4px; }
+    .sector-header-row span { font-family:var(--mono); font-size:10px;
+                               color:var(--muted); text-transform:uppercase;
+                               letter-spacing:.06em; text-align:right; }
+    .sector-header-row span:first-child { text-align:left; }
+    .sector-header-row span:nth-child(2) { text-align:left; }
+
+    /* Sector detail drawer */
+    .sector-detail { margin-top:16px; padding:16px;
+                     background:var(--surface); border:1px solid var(--border2);
+                     border-radius:var(--radius); display:none; }
+    .sector-detail.open { display:block; }
+    .detail-title { font-family:var(--mono); font-size:11px; color:var(--muted);
+                    text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; }
+    .detail-analogue-grid { display:grid;
+                            grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+                            gap:10px; }
+    .detail-analogue-card { background:var(--surface2); border-radius:6px;
+                            padding:10px 12px; }
+    .detail-analogue-date { font-family:var(--mono); font-size:10px;
+                            color:var(--muted); margin-bottom:8px; }
+    .detail-horizon-row { display:flex; justify-content:space-between;
+                          font-family:var(--mono); font-size:11px;
+                          margin-bottom:4px; }
+    .detail-label { color:var(--muted); }
+    .detail-method { font-size:9px; color:var(--muted); margin-top:6px;
+                     font-family:var(--mono); }
+
+    /* -- Phase 3 Step 2: Stock scanner ----------------------------------------- */
+    .stock-scan-wrap { margin-top:16px; }
+    .stock-scan-btn  { padding:8px 18px; border-radius:var(--radius); border:none;
+                       font-family:var(--sans); font-size:12px; font-weight:500;
+                       cursor:pointer; background:var(--blue); color:#fff;
+                       transition:opacity .15s; }
+    .stock-scan-btn:hover    { opacity:.85; }
+    .stock-scan-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+    .stock-results { margin-top:14px; display:flex; flex-direction:column; gap:6px; }
+
+    .stock-row { display:grid;
+                 grid-template-columns:70px 60px 80px 80px 80px 80px 90px 1fr;
+                 gap:8px; align-items:center; padding:10px 12px;
+                 background:var(--surface); border:1px solid var(--border);
+                 border-radius:6px; font-family:var(--mono); font-size:12px; }
+    .stock-row.signal-long  { border-color:rgba(46,204,138,0.3);
+                               background:rgba(46,204,138,0.03); }
+    .stock-row.signal-short { border-color:rgba(224,85,85,0.3);
+                               background:rgba(224,85,85,0.03); }
+    .stock-row.no-edge      { opacity:.5; }
+
+    .stock-header { display:grid;
+                    grid-template-columns:70px 60px 80px 80px 80px 80px 90px 1fr;
+                    gap:8px; padding:4px 12px; margin-bottom:2px; }
+    .stock-header span { font-family:var(--mono); font-size:10px; color:var(--muted);
+                         text-transform:uppercase; letter-spacing:.06em; }
+
+    .dir-badge { display:inline-block; padding:2px 8px; border-radius:3px;
+                 font-size:10px; font-weight:500; }
+    .dir-long  { background:var(--green-dim); color:var(--green); }
+    .dir-short { background:var(--red-dim);   color:var(--red); }
+    .dir-none  { background:var(--surface2);  color:var(--muted); }
+
+    .stop-pill { font-size:10px; color:var(--blue); background:var(--blue-dim);
+                 padding:2px 6px; border-radius:3px; }
+
+    .stock-matches { display:flex; flex-direction:column; gap:4px; margin-top:10px;
+                     padding:10px; background:var(--bg); border-radius:6px;
+                     display:none; }
+    .stock-matches.open { display:flex; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <h1>Macro<span class="accent">Analogue</span></h1>
+    <div class="header-sub">PTJ-style SPY overlay · Phase 1</div>
+    <div class="header-links">
+      <a class="header-link" href="http://localhost:5000">live scanner →</a>
+      <a class="header-link" href="http://localhost:5001">backtest →</a>
+    </div>
+  </header>
+
+  <div class="controls">
+    <span class="control-label">Pattern window</span>
+    <select class="window-select" id="windowSelect">
+      <option value="63">3 months (63 days)</option>
+      <option value="126">6 months (126 days)</option>
+      <option value="189">9 months (189 days)</option>
+      <option value="252" selected>12 months (252 days)</option>
+      <option value="378">18 months (378 days)</option>
+      <option value="504">24 months (504 days)</option>
+    </select>
+    <button class="btn btn-primary" id="runBtn" onclick="runAnalysis()">
+      Find Analogues
+    </button>
+    <span class="data-freshness" id="dataFreshness"></span>
+  </div>
+
+  <div class="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <span id="statusMsg">Select a window length and click Find Analogues.</span>
+  </div>
+
+  <div id="resultsArea">
+    <div class="empty">
+      Fetches full SPY history back to 1993 and finds the three historical
+      periods whose price shape most closely resembles the current market.
+      Inspired by Paul Tudor Jones overlaying the 1920s Dow against the 1980s Dow.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Colour palette — vivid solids, dim forward tails ─────────────────────────
+const PALETTE = {
+  current: { solid: '#ffffff',  dim: 'rgba(255,255,255,0.08)', fwd: 'rgba(255,255,255,0.25)' },
+  a1:      { solid: '#f0a040',  dim: 'rgba(240,160,64,0.0)',   fwd: 'rgba(240,160,64,0.25)'  },
+  a2:      { solid: '#2ecc8a',  dim: 'rgba(46,204,138,0.0)',   fwd: 'rgba(46,204,138,0.22)'  },
+  a3:      { solid: '#b57aff',  dim: 'rgba(181,122,255,0.0)',  fwd: 'rgba(181,122,255,0.22)' },
+};
+const ANALOGUE_KEYS = ['a1', 'a2', 'a3'];
+
+let chartInstance = null;
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+function fmtPct(v, d=1) {
+  if (v == null) return '—';
+  return (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';
+}
+function colorCls(v) {
+  if (v == null) return 'neu';
+  return v > 0 ? 'up' : v < 0 ? 'down' : 'neu';
+}
+function simColor(s) {
+  if (s >= 0.85) return 'var(--green)';
+  if (s >= 0.75) return 'var(--amber)';
+  return 'var(--subtle)';
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const btn     = document.getElementById('runBtn');
+  const spinner = document.getElementById('spinner');
+  const status  = document.getElementById('statusMsg');
+  const window  = parseInt(document.getElementById('windowSelect').value);
+
+  btn.disabled = true;
+  spinner.classList.add('active');
+  status.textContent = 'Fetching SPY history and computing similarities…';
+  document.getElementById('resultsArea').innerHTML = '';
+
+  try {
+    const res  = await fetch('/api/analogues', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ window }),
+    });
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('dataFreshness').textContent =
+      'SPY data through ' + data.spy_latest;
+    status.textContent =
+      `Found ${data.analogues.length} analogues · ${data.window_days}-day window · ` +
+      `current period: ${data.current.start_date} → ${data.current.end_date}`;
+
+    renderResults(data);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    document.getElementById('resultsArea').innerHTML = `
+      <div class="empty">Failed to load data. Make sure the Flask server is running on port 5002.</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  }
+}
+
+// ── Render everything ─────────────────────────────────────────────────────────
+function renderResults(data) {
+  const { current, analogues, interpretation } = data;
+
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="warning">
+      ⚠ Historical pattern matching is not a forecast. Past analogues provide context,
+      not certainty. This tool surfaces structural similarities — macro conditions,
+      policy, and fundamentals differ across periods. Always apply independent judgment.
+    </div>
+
+    <!-- Panel 1: Pattern match -->
+    <div class="chart-panel" style="margin-bottom:16px">
+      <div class="chart-panel-header">
+        <div>
+          <div class="chart-title">Panel 1 — Pattern Match</div>
+          <div class="chart-subtitle">
+            Current 12-month SPY shape (white) vs the three closest historical periods.
+            All normalised to 0% at their own start dates — comparing shape, not level.
+          </div>
+        </div>
+        <div class="legend-pills" id="legendPills"></div>
+      </div>
+      <div class="chart-wrap" style="height:300px">
+        <canvas id="matchChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Panel 2: Forward projections -->
+    <div class="chart-panel" style="margin-bottom:24px">
+      <div class="chart-panel-header">
+        <div>
+          <div class="chart-title">Panel 2 — What Happened Next</div>
+          <div class="chart-subtitle">
+            All three analogues anchored to 0% at today. Read as: if history rhymes, here is the range of outcomes.
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:300px">
+        <canvas id="fwdChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Today macro bar (Phase 2) — shown when FRED data is active -->
+    <div id="todayMacroBar" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px"></div>
+
+    <!-- Analogue cards -->
+    <div class="cards-title">Top ${analogues.length} Historical Analogues</div>
+    <div class="analogue-cards" id="analogueCards"></div>
+
+    <!-- Interpretation -->
+    <div class="interp-panel" id="interpPanel"></div>
+
+    <!-- Phase 3: Sector rotation — shown after analogues load -->
+    <div class="sector-panel" id="sectorPanel" style="display:none">
+      <div class="sector-panel-header">
+        <div>
+          <div class="sector-panel-title">Panel 3 — Sector Rotation</div>
+          <div class="sector-panel-sub">
+            Which sectors outperformed SPY in the 6 and 12 months following each
+            analogue period. Ranked by consistency × magnitude.
+          </div>
+        </div>
+        <button class="sector-run-btn" id="sectorBtn" onclick="runSectorAnalysis()">
+          Analyse Sectors
+        </button>
+      </div>
+      <div id="sectorResults">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:8px 0">
+          Click Analyse Sectors to compute sector rotation across all analogue periods.
+          Fetches ETF and proxy stock data — allow 20–40 seconds on first run.
+        </div>
+      </div>
+    </div>
+  `;
+
+  buildLegend(current, analogues);
+  buildMatchChart(current, analogues, data.window_days);
+  buildFwdChart(analogues);
+  renderTodayMacro(data.today_macro);
+  buildCards(analogues, data.macro_active);
+  buildInterpretation(interpretation, analogues);
+  showSectorPanel(analogues);
+}
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+function buildLegend(current, analogues) {
+  const container = document.getElementById('legendPills');
+  const pills = [
+    { key: 'current', label: `Current (${current.start_date.slice(0,7)} →)` },
+    ...analogues.map((a, i) => ({
+      key: ANALOGUE_KEYS[i],
+      label: a.start_date.slice(0,7) + ' — ' + a.end_date.slice(0,7),
+    })),
+  ];
+
+  pills.forEach(({ key, label }) => {
+    const p   = document.createElement('div');
+    p.className = `legend-pill ${key}`;
+    p.innerHTML = `
+      <div class="legend-dot" style="background:${PALETTE[key].solid}"></div>
+      <span>${label}</span>
+    `;
+    container.appendChild(p);
+  });
+}
+
+// ── Shared chart config ──────────────────────────────────────────────────────
+
+const X_SCALE = {
+  ticks: { color: '#5a6478', font: { family: 'DM Mono', size: 10 }, maxRotation: 0 },
+  grid:  { color: '#181c22' },
+};
+const Y_SCALE = {
+  ticks: {
+    color: '#5a6478',
+    font:  { family: 'DM Mono', size: 10 },
+    callback: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '%',
+  },
+  grid: { color: '#181c22' },
+};
+const TOOLTIP_BASE = {
+  mode: 'index', intersect: false,
+  backgroundColor: '#1a1e25', borderColor: '#2e3540', borderWidth: 1,
+  titleColor: '#8896aa', bodyColor: '#e2e6ed',
+  titleFont: { family: 'DM Mono', size: 11 },
+  bodyFont:  { family: 'DM Mono', size: 12 },
+  filter: item => item.parsed.y != null,
+  callbacks: {
+    label: c => {
+      if (c.parsed.y == null) return null;
+      const v = c.parsed.y;
+      return ` ${c.dataset.label}: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+    },
+  },
+};
+
+let matchChartInst = null;
+let fwdChartInst   = null;
+
+// ── Panel 1: Pattern match ────────────────────────────────────────────────────
+// Current SPY (white) overlaid on the matched window of each analogue.
+// All series: 0% at their own start. Y-axis locked to a tight band so you
+// can actually see the shape similarity.
+
+function buildMatchChart(current, analogues, windowDays) {
+  const ctx    = document.getElementById('matchChart').getContext('2d');
+  const labels = Array.from({ length: windowDays }, (_, i) => i);
+  const datasets = [];
+
+  datasets.push({
+    label: 'Current',
+    data:  current.norm.map(v => v * 100),
+    borderColor: PALETTE.current.solid,
+    borderWidth: 3, pointRadius: 0, fill: false, tension: 0.2, order: 0,
+  });
+
+  analogues.forEach((a, i) => {
+    const key = ANALOGUE_KEYS[i];
+    datasets.push({
+      label: a.start_date.slice(0,7) + ' to ' + a.end_date.slice(0,7),
+      data:  a.analogue_norm.map(v => v * 100),
+      borderColor: PALETTE[key].solid,
+      borderWidth: 1.8, pointRadius: 0, fill: false, tension: 0.2, order: i + 1,
+    });
+  });
+
+  if (matchChartInst) { matchChartInst.destroy(); matchChartInst = null; }
+
+  matchChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 500 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...TOOLTIP_BASE, callbacks: { ...TOOLTIP_BASE.callbacks,
+          title: items => 'Day ' + (items[0]?.dataIndex ?? 0) } },
+      },
+      scales: {
+        x: { ...X_SCALE, ticks: { ...X_SCALE.ticks, maxTicksLimit: 8,
+          callback: (val, i) => {
+            if (i === 0) return 'Start';
+            if (i === windowDays - 1) return 'Today';
+            // Place labels at exact multiples of 63 days (3 months) from the end
+            // Use integer division to avoid floating-point near-misses
+            const daysFromEnd = windowDays - 1 - i;
+            if (daysFromEnd > 0 && daysFromEnd % 63 === 0) {
+              const moAgo = Math.round(daysFromEnd / 21);
+              return '-' + moAgo + 'mo';
+            }
+            return '';
+          }
+        }},
+        y: { ...Y_SCALE, suggestedMin: -25, suggestedMax: 25 },
+      },
+    },
+  });
+}
+
+// ── Panel 2: Forward projections ──────────────────────────────────────────────
+// All analogues anchored to 0% at today. Dashed coloured = individual periods.
+// Solid white = similarity-weighted average. This is the "roadmap" panel.
+
+function buildFwdChart(analogues) {
+  const ctx    = document.getElementById('fwdChart').getContext('2d');
+  const maxFwd = 504;
+  const labels = Array.from({ length: maxFwd }, (_, i) => i);
+  const datasets = [];
+
+  // Weighted average
+  const weights = analogues.map(a => a.similarity ** 2);
+  const wSum    = weights.reduce((s, w) => s + w, 0);
+  const wNorm   = weights.map(w => w / wSum);
+  const avgData = Array.from({ length: maxFwd }, (_, i) => {
+    let val = 0, tw = 0;
+    analogues.forEach((a, j) => {
+      const v = (a.forward_norm || [])[i];
+      if (v != null) { val += v * wNorm[j]; tw += wNorm[j]; }
+    });
+    return tw > 0.05 ? (val / tw) * 100 : null;
+  });
+
+  // Individual tails — dashed, coloured
+  analogues.forEach((a, i) => {
+    const key     = ANALOGUE_KEYS[i];
+    const fwdData = (a.forward_norm || []).slice(0, maxFwd).map(v => v * 100);
+    while (fwdData.length < maxFwd) fwdData.push(null);
+    datasets.push({
+      label: a.start_date.slice(0,7) + ' fwd',
+      data:  fwdData,
+      borderColor: PALETTE[key].solid,
+      borderWidth: 1.5, borderDash: [6, 4],
+      pointRadius: 0, fill: false, tension: 0.2, order: i + 2,
+    });
+  });
+
+  // Weighted avg — solid white on top
+  datasets.push({
+    label: 'Weighted avg',
+    data:  avgData,
+    borderColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 2.5, pointRadius: 0, fill: false, tension: 0.3, order: 0,
+  });
+
+  if (fwdChartInst) { fwdChartInst.destroy(); fwdChartInst = null; }
+
+  fwdChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 500 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...TOOLTIP_BASE, callbacks: { ...TOOLTIP_BASE.callbacks,
+          title: items => {
+            const d = items[0]?.dataIndex ?? 0;
+            return '+' + d + 'd from today (~' + (d/21).toFixed(0) + ' months)';
+          }
+        }},
+      },
+      scales: {
+        x: { ...X_SCALE, ticks: { ...X_SCALE.ticks, maxTicksLimit: 8,
+          callback: (v, i) => i === 0 ? 'Today' : i === 126 ? '+6mo' : i === 252 ? '+12mo' : i === 378 ? '+18mo' : i === 504 ? '+24mo' : '' }},
+        y: { ...Y_SCALE },
+      },
+    },
+    plugins: [{
+      id: 'zeroLine',
+      afterDraw(chart) {
+        const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+        const yPx = y.getPixelForValue(0);
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(left, yPx);
+        ctx.lineTo(right, yPx);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }],
+  });
+}
+
+
+
+// ── Analogue cards ────────────────────────────────────────────────────────────
+// Each card shows: period dates, price similarity, regime similarity (Phase 2),
+// combined score, forward returns at 6/12/24mo, and the macro snapshot at the
+// analogue end date so you can see *why* the regime score is what it is.
+
+function buildCards(analogues, macroActive) {
+  const container = document.getElementById('analogueCards');
+
+  analogues.forEach((a, i) => {
+    const key     = ANALOGUE_KEYS[i];
+    const color   = PALETTE[key].solid;
+    const rankCls = ['rank-1', 'rank-2', 'rank-3'][i];
+
+    const fwdCells = Object.entries(a.forward).map(([label, val]) => `
+      <div class="fwd-cell">
+        <div class="fwd-label">${label}</div>
+        <div class="fwd-value ${colorCls(val)}">${fmtPct(val)}</div>
+      </div>
+    `).join('');
+
+    // Regime score bar — shown only when macro scoring is active
+    const regimeHtml = (macroActive && a.regime_sim != null) ? `
+      <div class="score-row" style="margin-bottom:10px">
+        <div class="score-item">
+          <div class="score-label">Price match</div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-fill" style="width:${(a.price_sim*100).toFixed(0)}%;background:${color}"></div>
+          </div>
+          <div class="score-val" style="color:${color}">${(a.price_sim*100).toFixed(1)}%</div>
+        </div>
+        <div class="score-item">
+          <div class="score-label">Regime match</div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-fill" style="width:${(a.regime_sim*100).toFixed(0)}%;background:${regimeColor(a.regime_sim)}"></div>
+          </div>
+          <div class="score-val" style="color:${regimeColor(a.regime_sim)}">${(a.regime_sim*100).toFixed(1)}%</div>
+        </div>
+        <div class="score-item">
+          <div class="score-label">Combined</div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-fill" style="width:${(a.combined*100).toFixed(0)}%;background:var(--text)"></div>
+          </div>
+          <div class="score-val" style="color:var(--text)">${(a.combined*100).toFixed(1)}%</div>
+        </div>
+      </div>` : `
+      <div style="margin-bottom:10px;font-family:var(--mono);font-size:13px;color:${color}">
+        ${(a.price_sim*100).toFixed(1)}% price match
+      </div>`;
+
+    // Macro snapshot at analogue end date — shows the regime context
+    const snapHtml = (macroActive && a.macro_snap) ? buildMacroSnap(a.macro_snap) : '';
+
+    const card = document.createElement('div');
+    card.className = 'analogue-card';
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="card-rank ${rankCls}">ANALOGUE #${i+1}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">
+          ${a.start_date} → ${a.end_date}
+        </span>
+      </div>
+      ${regimeHtml}
+      <div class="fwd-grid">${fwdCells}</div>
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:8px;margin-bottom:${snapHtml ? '12px' : '0'}">
+        Returns from ${a.end_date} forward
+      </div>
+      ${snapHtml}
+    `;
+    container.appendChild(card);
+  });
+}
+
+function regimeColor(v) {
+  if (v == null) return 'var(--muted)';
+  if (v >= 0.65) return 'var(--green)';
+  if (v >= 0.40) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+// Compact macro snapshot table shown inside each analogue card
+function buildMacroSnap(snap) {
+  const rows = [
+    { label: 'Fed Funds',    val: snap.fed_funds.toFixed(2) + '%',
+      sub: snap.fed_change >= 0.25 ? 'hiking' : snap.fed_change <= -0.25 ? 'cutting' : 'holding',
+      good: snap.fed_change <= 0 },
+    { label: 'Yield curve',  val: snap.yield_curve.toFixed(2) + '%',
+      sub: snap.yield_curve < 0 ? 'inverted' : snap.yield_curve < 0.5 ? 'flat' : 'normal',
+      good: snap.yield_curve >= 0 },
+    { label: 'CPI YoY',      val: snap.cpi_yoy.toFixed(1) + '%',
+      sub: snap.cpi_change >= 0.5 ? 'rising' : snap.cpi_change <= -0.5 ? 'falling' : 'stable',
+      good: snap.cpi_yoy < 4 },
+    { label: 'HY Spread',    val: snap.hy_spread.toFixed(2) + '%',
+      sub: snap.hy_spread > 6 ? 'stressed' : snap.hy_spread > 4 ? 'elevated' : 'tight',
+      good: snap.hy_spread < 5 },
+  ];
+
+  const cells = rows.map(r => `
+    <div class="snap-cell">
+      <div class="snap-label">${r.label}</div>
+      <div class="snap-val ${r.good ? 'up' : 'down'}">${r.val}</div>
+      <div class="snap-sub">${r.sub}</div>
+    </div>`).join('');
+
+  return `
+    <div class="macro-snap">
+      <div class="snap-title">Macro at analogue end</div>
+      <div class="snap-grid">${cells}</div>
+    </div>`;
+}
+
+// ── Today's macro bar ─────────────────────────────────────────────────────────
+// Rendered above the analogue cards so you can compare today vs each analogue
+
+function renderTodayMacro(snap) {
+  if (!snap) return;
+  const el = document.getElementById('todayMacroBar');
+  if (!el) return;
+
+  // Threshold-based traffic light colour for each metric
+  function metricColor(key, val) {
+    if (key === 'yield_curve') {
+      if (val < -0.25) return 'var(--red)';      // inverted — danger
+      if (val <  0.25) return 'var(--amber)';    // flat — caution
+      return 'var(--green)';                      // normal/steep — healthy
+    }
+    if (key === 'hy_spread') {
+      if (val > 6.0) return 'var(--red)';        // stressed
+      if (val > 4.5) return 'var(--amber)';      // elevated
+      return 'var(--green)';                      // tight — healthy
+    }
+    if (key === 'cpi_yoy') {
+      if (val > 5.0) return 'var(--red)';        // high inflation
+      if (val > 3.5) return 'var(--amber)';      // above target
+      return 'var(--green)';                      // near target
+    }
+    if (key === 'fed_funds') {
+      // Colour by direction of change
+      if (snap.fed_change >= 0.25) return 'var(--amber)';   // hiking
+      if (snap.fed_change <= -0.25) return 'var(--green)';  // cutting
+      return 'var(--subtle)';                                // holding
+    }
+    return 'var(--text)';
+  }
+
+  // Yield curve warning level
+  function ycWarning(val) {
+    if (val < -0.25) return '🔴 INVERTED — recession signal';
+    if (val <  0.00) return '🟡 Near zero — watch carefully';
+    if (val <  0.50) return '🟡 Flat — transition zone';
+    if (val <  1.00) return '🟢 Normalising — healthy';
+    return '🟢 Steep — growth regime';
+  }
+
+  // HY spread warning level
+  function hyWarning(val) {
+    if (val > 8.0) return '🔴 CRISIS — exit risk assets';
+    if (val > 6.0) return '🔴 Stressed — reduce positions';
+    if (val > 4.5) return '🟡 Elevated — reduce leverage';
+    if (val > 3.5) return '🟡 Watch — risk rising';
+    return '🟢 Tight — risk-on';
+  }
+
+  const metrics = [
+    { key: 'fed_funds',   label: 'Fed Funds',   val: snap.fed_funds.toFixed(2) + '%',
+      note: snap.fed_change >= 0.25 ? '▲ hiking' : snap.fed_change <= -0.25 ? '▼ cutting' : '— holding',
+      warning: null },
+    { key: 'yield_curve', label: '10y-2y Curve', val: snap.yield_curve.toFixed(2) + '%',
+      note: snap.yield_curve < 0 ? 'inverted' : snap.yield_curve < 0.5 ? 'flat' : snap.yield_curve < 1.0 ? 'normalising' : 'steep',
+      warning: ycWarning(snap.yield_curve) },
+    { key: 'cpi_yoy',    label: 'CPI YoY',      val: snap.cpi_yoy.toFixed(1) + '%',
+      note: snap.cpi_change >= 0.5 ? '▲ rising' : snap.cpi_change <= -0.5 ? '▼ falling' : '— stable',
+      warning: null },
+    { key: 'hy_spread',  label: 'HY Spread',    val: snap.hy_spread.toFixed(2) + '%',
+      note: snap.hy_spread > 6 ? 'stressed' : snap.hy_spread > 4.5 ? 'elevated' : snap.hy_spread > 3.5 ? 'watch' : 'tight',
+      warning: hyWarning(snap.hy_spread) },
+  ];
+
+  el.innerHTML = `
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;display:flex;align-items:center;gap:12px">
+      <span>Today's macro regime</span>
+      <span style="color:var(--border2)">|</span>
+      <span style="color:var(--subtle);font-size:9px">Fed Chair: Kevin Warsh (from May 15, 2026) · First FOMC: Jun 16-17</span>
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      ${metrics.map(m => `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;min-width:130px">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:3px">${m.label}</div>
+          <div style="font-family:var(--mono);font-size:18px;font-weight:500;color:${metricColor(m.key, snap[m.key])}">${m.val}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--subtle);margin-top:2px">${m.note}</div>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${metrics.filter(m => m.warning).map(m => `
+        <div style="font-family:var(--mono);font-size:11px;color:var(--subtle);padding:6px 10px;background:var(--bg);border-radius:4px;border-left:2px solid var(--border2)">
+          <span style="color:var(--muted)">${m.label}:</span> ${m.warning}
+        </div>`).join('')}
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:6px 10px;background:var(--bg);border-radius:4px;border-left:2px solid var(--border2)">
+        <span style="color:var(--muted)">HY spread danger levels:</span>
+        &gt;3.5% watch · &gt;4.5% reduce leverage · &gt;6.0% reduce positions · &gt;8.0% exit
+      </div>
+    </div>`;
+  el.style.display = 'block';
+}
+
+// ── Interpretation panel ──────────────────────────────────────────────────────
+function buildInterpretation(interp, analogues) {
+  const { expected_returns: er, summary, macro_active } = interp;
+
+  const retBlocks = Object.entries(er).map(([label, val]) => `
+    <div class="ret-block">
+      <div class="ret-horizon">${label}</div>
+      <div class="ret-value ${colorCls(val)}">${fmtPct(val, 1)}</div>
+    </div>
+  `).join('');
+
+  const methodBadge = macro_active
+    ? `<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--green-dim);color:var(--green);margin-left:10px">Phase 2: macro active</span>`
+    : `<span style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:var(--amber-dim);color:var(--amber);margin-left:10px">Price-only ranking</span>`;
+
+  document.getElementById('interpPanel').innerHTML = `
+    <div class="interp-header">
+      <span class="interp-icon">◈</span>
+      <span class="interp-title">Weighted Interpretation</span>
+      ${methodBadge}
+    </div>
+    <div class="interp-returns">${retBlocks}</div>
+    <div class="interp-text">${summary}</div>
+  `;
+}
+// =============================================================================
+// Phase 3 — Sector rotation
+// =============================================================================
+
+let _lastAnalogues = null;   // stored when analogues load, used by sector call
+
+// Show the sector panel after analogues render
+function showSectorPanel(analogues) {
+  _lastAnalogues = analogues;
+  const panel = document.getElementById('sectorPanel');
+  if (panel) panel.style.display = 'block';
+}
+
+async function runSectorAnalysis() {
+  if (!_lastAnalogues || !_lastAnalogues.length) return;
+
+  const btn = document.getElementById('sectorBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching sector data...';
+
+  document.getElementById('sectorResults').innerHTML = `
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:8px 0">
+      Fetching ETF and proxy stock data for ${_lastAnalogues.length} analogue periods.
+      This takes 20–40 seconds on first run (data is cached after that)...
+    </div>`;
+
+  try {
+    const res  = await fetch('/api/sectors', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ analogues: _lastAnalogues }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderSectors(data.sectors);
+    btn.textContent = 'Refresh';
+  } catch(e) {
+    document.getElementById('sectorResults').innerHTML =
+      `<div style="font-family:var(--mono);font-size:12px;color:var(--red)">Error: ${e.message}</div>`;
+    btn.textContent = 'Analyse Sectors';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderSectors(sectors) {
+  if (!sectors || !sectors.length) return;
+
+  // Find the max absolute combined score for bar scaling
+  const maxScore = Math.max(...sectors.map(s => Math.abs(s.combined_score)));
+
+  const headerHtml = `
+    <div class="sector-header-row">
+      <span>Sector</span>
+      <span style="text-align:left">Relative outperformance vs SPY</span>
+      <span>6mo rel</span>
+      <span>12mo rel</span>
+      <span>Consistency</span>
+      <span>Score</span>
+    </div>`;
+
+  const rowsHtml = sectors.map((s, i) => {
+    const isTop     = i < 3 && s.combined_score > 0;
+    const barWidth  = maxScore > 0 ? Math.min(Math.abs(s.combined_score) / maxScore * 100, 100) : 0;
+    const barColor  = s.combined_score >= 0 ? 'var(--green)' : 'var(--red)';
+    const scoreColor = s.combined_score >= 0.02 ? 'var(--green)'
+                     : s.combined_score >= 0     ? 'var(--subtle)'
+                     : 'var(--red)';
+
+    // Consistency dots — one per analogue, green if outperformed
+    const dots = _lastAnalogues.map((a, ai) => {
+      const detail = s.analogue_detail[ai];
+      const h12    = detail?.horizons?.['12mo'];
+      const out    = h12?.outperformed;
+      const color  = out === true  ? 'var(--green)'
+                   : out === false ? 'var(--red)'
+                   : 'var(--muted)';
+      return `<div class="cons-dot" style="background:${color}" title="${detail?.analogue_end || ''}"></div>`;
+    }).join('');
+
+    const rel6  = s.avg_relative_6  != null ? fmtRel(s.avg_relative_6)  : '—';
+    const rel12 = s.avg_relative_12 != null ? fmtRel(s.avg_relative_12) : '—';
+
+    return `
+      <div class="sector-row ${isTop ? 'top-sector' : ''}"
+           onclick="toggleSectorDetail('detail_${s.sector_key}', this)">
+        <div>
+          <div class="sector-name">${s.sector_name}</div>
+          <div class="sector-etf">${s.etf}</div>
+        </div>
+        <div class="sector-bar-wrap">
+          <div class="sector-bar-bg">
+            <div class="sector-bar-fill"
+                 style="width:${barWidth.toFixed(1)}%;background:${barColor}"></div>
+          </div>
+        </div>
+        <div class="sector-stat ${colorCls(s.avg_relative_6)}">${rel6}</div>
+        <div class="sector-stat ${colorCls(s.avg_relative_12)}">${rel12}</div>
+        <div class="sector-consistency">${dots}</div>
+        <div class="sector-stat" style="color:${scoreColor};font-weight:500">
+          ${fmtRel(s.combined_score)}
+        </div>
+      </div>
+      <div class="sector-detail" id="detail_${s.sector_key}">
+        ${buildSectorDetail(s)}
+      </div>`;
+  }).join('');
+
+  document.getElementById('sectorResults').innerHTML = headerHtml + `
+    <div class="sector-grid">${rowsHtml}</div>`;
+}
+
+function fmtRel(v) {
+  if (v == null) return '—';
+  return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+}
+
+function toggleSectorDetail(id, row) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+}
+
+function buildSectorDetail(s) {
+  const cards = s.analogue_detail.map(a => {
+    const h6  = a.horizons['6mo'];
+    const h12 = a.horizons['12mo'];
+    const method = h12?.method || h6?.method || 'proxy';
+
+    return `
+      <div class="detail-analogue-card">
+        <div class="detail-analogue-date">Analogue #${a.analogue_rank}: ${a.analogue_end}</div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">6mo sector</span>
+          <span class="${colorCls(h6?.sector_return)}">${h6 ? fmtPct(h6.sector_return) : '—'}</span>
+        </div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">6mo SPY</span>
+          <span class="neu">${h6 ? fmtPct(h6.spy_return) : '—'}</span>
+        </div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">6mo relative</span>
+          <span class="${colorCls(h6?.relative_return)}">${h6 ? fmtRel(h6.relative_return) : '—'}</span>
+        </div>
+        <div style="height:6px"></div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">12mo sector</span>
+          <span class="${colorCls(h12?.sector_return)}">${h12 ? fmtPct(h12.sector_return) : '—'}</span>
+        </div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">12mo SPY</span>
+          <span class="neu">${h12 ? fmtPct(h12.spy_return) : '—'}</span>
+        </div>
+        <div class="detail-horizon-row">
+          <span class="detail-label">12mo relative</span>
+          <span class="${colorCls(h12?.relative_return)}">${h12 ? fmtRel(h12.relative_return) : '—'}</span>
+        </div>
+        <div class="detail-method">Data: ${method === 'etf' ? 'ETF' : 'proxy basket'}</div>
+      </div>`;
+  }).join('');
+
+  // Show scan button for sectors with a defined stock list
+  const scannable = ['XLK','XLF','XLE','XLY','XLV'];
+  const scanBtn = scannable.includes(s.sector_key) ? `
+    <div class="stock-scan-wrap">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);
+                  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;margin-top:16px">
+        Individual stock signals — 21-day pattern engine
+      </div>
+      <button class="stock-scan-btn"
+              id="scanBtn_${s.sector_key}"
+              onclick="runStockScan('${s.sector_key}')">
+        Scan ${s.sector_name} Stocks
+      </button>
+      <div id="stockResults_${s.sector_key}" class="stock-results"></div>
+    </div>` : '';
+
+  return `
+    <div class="detail-title">Per-analogue breakdown — click row to collapse</div>
+    <div class="detail-analogue-grid">${cards}</div>
+    ${scanBtn}`;
+}
+
+
+// =============================================================================
+// Phase 3 Step 2 — Individual stock signal scanner
+// =============================================================================
+
+async function runStockScan(sectorKey) {
+  const btn     = document.getElementById('scanBtn_' + sectorKey);
+  const results = document.getElementById('stockResults_' + sectorKey);
+  if (!btn || !results) return;
+
+  btn.disabled      = true;
+  btn.textContent   = 'Scanning stocks...';
+  results.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:8px 0">Running 21-day pattern engine on all stocks. Allow 15–30 seconds...</div>';
+
+  try {
+    const res  = await fetch('/api/scan_stocks', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sector_key: sectorKey }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderStockResults(data, results);
+    btn.textContent = 'Rescan (' + data.n_signals + ' signal' + (data.n_signals !== 1 ? 's' : '') + ' found)';
+  } catch(e) {
+    results.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--red)">Error: ' + e.message + '</div>';
+    btn.textContent   = 'Scan Stocks';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderStockResults(data, container) {
+  const signals = data.results.filter(r => r.status === 'signal');
+  const noEdge  = data.results.filter(r => r.status === 'no_edge');
+
+  if (!signals.length && !noEdge.length) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:8px 0">No signals found. Market may be in a low-conviction state for this sector.</div>';
+    return;
+  }
+
+  const header = '<div class="stock-header"><span>Ticker</span><span>Price</span><span>Direction</span><span>Exp Rtn</span><span>Win Rate</span><span>EV Score</span><span>Stop</span><span>Matches/Sim</span></div>';
+
+  const signalRows = signals.map(r => {
+    const dirCls  = r.direction === 'LONG' ? 'dir-long' : 'dir-short';
+    const rowCls  = r.direction === 'LONG' ? 'signal-long' : 'signal-short';
+    return '<div class="stock-row ' + rowCls + '" onclick="toggleStockMatches(this)" data-id="matches_' + r.ticker + '">' +
+      '<span style="font-weight:500;color:var(--text)">' + r.ticker + '</span>' +
+      '<span class="neu">$' + r.price.toFixed(0) + '</span>' +
+      '<span><span class="dir-badge ' + dirCls + '">' + r.direction + '</span></span>' +
+      '<span class="' + colorCls(r.avg_return) + '">' + fmtPct(r.avg_return) + '</span>' +
+      '<span class="' + (r.win_rate >= 0.55 ? 'up' : 'neu') + '">' + (r.win_rate*100).toFixed(0) + '%</span>' +
+      '<span class="' + colorCls(r.ev_score) + '" style="font-weight:500">' + fmtPct(r.ev_score) + '</span>' +
+      '<span><span class="stop-pill" title="2xATR stop">−' + (r.suggested_stop*100).toFixed(1) + '%</span></span>' +
+      '<span class="neu">' + r.match_count + ' @ ' + (r.best_sim*100).toFixed(0) + '%</span>' +
+      '</div>' +
+      '<div class="stock-matches" id="matches_' + r.ticker + '">' +
+        '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Top historical analogues</div>' +
+        r.top_matches.map(m =>
+          '<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:3px 0;border-bottom:1px solid var(--border)">' +
+          '<span style="color:var(--subtle)">' + m.date + '</span>' +
+          '<span style="color:var(--muted)">' + (m.similarity*100).toFixed(1) + '% sim</span>' +
+          '<span class="' + colorCls(m.fwd_return) + '">' + fmtPct(m.fwd_return) + ' fwd</span>' +
+          '</div>').join('') +
+      '</div>';
+  }).join('');
+
+  const noEdgeHtml = noEdge.length
+    ? '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:6px 12px;margin-top:4px">No edge: ' + noEdge.map(r => r.ticker).join(', ') + '</div>'
+    : '';
+
+  const summary = '<div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px 0;margin-bottom:8px">' +
+    signals.length + ' signal' + (signals.length !== 1 ? 's' : '') + ' from ' + data.tickers.length + ' stocks scanned in ' + data.scan_time + 's. Click a row to see top analogues.' +
+    '</div>';
+
+  container.innerHTML = summary + header + signalRows + noEdgeHtml;
+}
+
+function toggleStockMatches(el) {
+  // Accept either an element (from onclick) or an id string
+  const id  = typeof el === 'string' ? el : el.dataset.id;
+  const div = document.getElementById(id);
+  if (div) div.classList.toggle('open');
+}
+</script>
+</body>
+</html>

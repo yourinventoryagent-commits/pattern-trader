@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pattern Trader — Backtest v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --bg:#0d0f12;--surface:#13161b;--surface2:#1a1e25;--border:#22272f;--border2:#2e3540;
+      --text:#e2e6ed;--muted:#5a6478;--subtle:#8896aa;
+      --green:#2ecc8a;--green-dim:#1a4a35;--red:#e05555;--red-dim:#4a1f1f;
+      --amber:#f0a040;--amber-dim:#3d2a10;--blue:#4a9eff;--blue-dim:#0f2a4a;
+      --radius:8px;--mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+    .shell{max-width:1280px;margin:0 auto;padding:40px 24px 80px}
+
+    header{display:flex;align-items:baseline;gap:16px;margin-bottom:32px;border-bottom:1px solid var(--border);padding-bottom:24px}
+    header h1{font-family:var(--mono);font-size:20px;font-weight:500}
+    header h1 span{color:var(--amber)}
+    .header-sub{font-size:12px;color:var(--muted);font-family:var(--mono)}
+    .header-link{margin-left:auto;font-size:12px;color:var(--blue);font-family:var(--mono);text-decoration:none}
+    .header-link:hover{text-decoration:underline}
+
+    .warning{background:#1e1a0e;border:1px solid #4a3a10;border-radius:var(--radius);padding:12px 16px;font-size:12px;color:var(--amber);margin-bottom:24px;font-family:var(--mono)}
+
+    .controls{display:flex;gap:12px;margin-bottom:20px;align-items:center}
+    .btn{padding:10px 22px;border-radius:var(--radius);border:none;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--amber);color:#1a0f00}
+    .btn-primary:hover{opacity:.88}
+    .btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+    /* Progress */
+    .progress-wrap{margin-bottom:28px;display:none}
+    .progress-wrap.active{display:block}
+    .progress-header{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:8px}
+    .progress-track{height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+    .progress-fill{height:4px;background:var(--amber);border-radius:2px;transition:width .4s ease;width:0%}
+    .ticker-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+    .pill{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--muted);transition:all .3s}
+    .pill.running{border-color:var(--amber);color:var(--amber);background:var(--amber-dim)}
+    .pill.done-up{border-color:var(--green);color:var(--green);background:var(--green-dim)}
+    .pill.done-dn{border-color:var(--red);color:var(--red);background:var(--red-dim)}
+    .pill.no-sig{border-color:var(--muted);color:var(--muted)}
+
+    /* Params */
+    .params-bar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .params-bar b{color:var(--subtle);font-weight:500}
+
+    /* Portfolio summary */
+    .portfolio-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:32px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+    .stat-card .label{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:6px}
+    .stat-card .value{font-family:var(--mono);font-size:22px;font-weight:500}
+    .stat-card .sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+    .up{color:var(--green)}.down{color:var(--red)}.neu{color:var(--subtle)}.amb{color:var(--amber)}
+
+    .section-title{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+
+    /* Ticker cards */
+    .ticker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(580px,1fr));gap:24px;margin-bottom:40px}
+    .ticker-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;animation:fadeIn .4s ease}
+    .ticker-card.no-data{opacity:.45;display:flex;align-items:center;justify-content:center;min-height:100px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+    .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .card-ticker{font-family:var(--mono);font-size:18px;font-weight:500}
+    .card-return{font-family:var(--mono);font-size:16px;font-weight:500}
+
+    .card-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+    .mini-stat{background:var(--surface2);border-radius:6px;padding:8px 10px}
+    .mini-stat .ml{font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:3px}
+    .mini-stat .mv{font-family:var(--mono);font-size:13px;font-weight:500}
+
+    .chart-wrap{position:relative;width:100%;height:170px;margin-bottom:14px}
+
+    /* Diagnostics panel */
+    .diag-panel{border-top:1px solid var(--border);padding-top:14px;margin-top:2px}
+    .diag-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .diag-title{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+    .verdict-badge{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:4px}
+    .verdict-strong{background:var(--green-dim);color:var(--green)}
+    .verdict-moderate{background:var(--amber-dim);color:var(--amber)}
+    .verdict-weak{background:var(--red-dim);color:var(--red)}
+    .verdict-none{background:var(--surface2);color:var(--muted)}
+
+    .diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+    .diag-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:6px 8px;background:var(--surface2);border-radius:6px}
+    .diag-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+    .diag-dot.good{background:var(--green)}
+    .diag-dot.bad{background:var(--red)}
+    .diag-label{font-family:var(--mono);color:var(--muted);font-size:10px;white-space:nowrap}
+    .diag-value{color:var(--subtle);font-size:11px;margin-top:1px}
+
+    /* Stop badge */
+    .stop-badge{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;background:var(--blue-dim);color:var(--blue);margin-left:6px}
+
+    /* Summary table */
+    .table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:40px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+    th{text-align:left;padding:10px 14px;font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+    th.r,td.r{text-align:right}
+    tbody tr{border-bottom:1px solid var(--border)}
+    tbody tr:last-child{border-bottom:none}
+    tbody tr:hover{background:var(--surface)}
+    td{padding:11px 14px}
+    .mono{font-family:var(--mono)}
+    .rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-family:var(--mono);font-size:11px;font-weight:500}
+    .rg{background:#3a2e00;color:var(--amber)}
+    .rs{background:var(--surface2);color:#aab0bc}
+    .rb{background:var(--surface2);color:#9a7060}
+
+    .empty{text-align:center;padding:60px;color:var(--muted);font-family:var(--mono);font-size:13px}
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <h1>Pattern<span>Backtest</span> <span style="font-size:13px;color:var(--muted)">v3</span></h1>
+    <div class="header-sub">trend filter · time-decay · trailing stop · diagnostics · {{ backtest_years }}yr</div>
+    <a class="header-link" href="http://localhost:5000">← live scanner</a>
+  </header>
+
+  <div class="warning">
+    ⚠ Hypothetical results only. Improvements vs v2: fixed avg win/loss calc · 50d/200d trend filter · time-decay analogue weighting · {{ "%.0f"|format(4) }}% trailing stop · diagnostic analysis per ticker. Slippage 0.1%/trade.
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="runBtn" onclick="runBacktest()">
+      Run Backtest v3 — 10 tickers in parallel
+    </button>
+    <span id="elapsedDisplay" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <span id="progressLabel">Initialising…</span>
+      <span id="progressCount"></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="ticker-pills" id="tickerPills"></div>
+  </div>
+
+  <div id="resultsArea">
+    <div class="empty">Click Run Backtest v3. Expect 30–90 seconds with parallel execution.</div>
+  </div>
+
+</div>
+<script>
+let allResults=[], totalCount=0, elapsedTimer=null, startTime=null;
+
+const fmtPct=(v,d=1)=>v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
+const colCls=v=>v==null?'neu':v>0?'up':v<0?'down':'neu';
+
+function verdictClass(v) {
+  if (v.includes('Strong')) return 'verdict-strong';
+  if (v.includes('Moderate')) return 'verdict-moderate';
+  if (v.includes('Weak')) return 'verdict-weak';
+  return 'verdict-none';
+}
+
+function resetUI() {
+  allResults=[]; startTime=Date.now();
+  document.getElementById('resultsArea').innerHTML='';
+  document.getElementById('progressWrap').classList.add('active');
+  document.getElementById('progressLabel').textContent='Fetching data and running walk-forward…';
+  document.getElementById('progressCount').textContent='';
+  document.getElementById('progressFill').style.width='0%';
+  document.getElementById('tickerPills').innerHTML='';
+  document.getElementById('elapsedDisplay').textContent='';
+  elapsedTimer=setInterval(()=>{
+    document.getElementById('elapsedDisplay').textContent=
+      ((Date.now()-startTime)/1000).toFixed(0)+'s elapsed';
+  },1000);
+}
+
+function finishUI(elapsed) {
+  clearInterval(elapsedTimer);
+  document.getElementById('progressFill').style.width='100%';
+  document.getElementById('progressLabel').textContent='All done in '+elapsed+'s';
+  document.getElementById('elapsedDisplay').textContent='Finished in '+elapsed+'s';
+  document.getElementById('runBtn').disabled=false;
+  renderSummaryTable();
+  renderPortfolioStats();
+}
+
+function handleResult(r, completed, total, elapsed) {
+  allResults.push(r);
+  const pill=document.getElementById('pill_'+r.ticker);
+  if (pill) pill.className=r.error?'pill no-sig':r.stats&&r.stats.total_return>=0?'pill done-up':'pill done-dn';
+  document.getElementById('progressFill').style.width=(completed/total*100)+'%';
+  document.getElementById('progressCount').textContent=completed+' / '+total;
+  document.getElementById('progressLabel').textContent='Completed '+r.ticker+' · '+elapsed+'s total';
+  renderTickerCard(r);
+}
+
+function spawnPills(tickers) {
+  totalCount=tickers.length;
+  document.getElementById('progressCount').textContent='0 / '+totalCount;
+  const pills=document.getElementById('tickerPills');
+  tickers.forEach(t=>{
+    const p=document.createElement('span');
+    p.className='pill running'; p.id='pill_'+t; p.textContent=t;
+    pills.appendChild(p);
+  });
+}
+
+// POST fallback — used when SSE fails or as the primary method
+async function runPostFallback(btn) {
+  document.getElementById('progressLabel').textContent=
+    'Running backtest (batch mode — results appear when all tickers complete)…';
+  const TICKERS = "{{ default_watchlist }}";
+  spawnPills(TICKERS.split(',').map(t=>t.trim()));
+  try {
+    const res = await fetch('/api/backtest', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({tickers: TICKERS}),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    data.results.forEach((r,i) => handleResult(r, i+1, data.results.length, data.elapsed));
+    finishUI(data.elapsed);
+  } catch(e) {
+    clearInterval(elapsedTimer);
+    document.getElementById('progressLabel').textContent='Error: '+e.message;
+    btn.disabled=false;
+  }
+}
+
+function runBacktest() {
+  const btn=document.getElementById('runBtn');
+  btn.disabled=true;
+  resetUI();
+
+  const TICKERS = "{{ default_watchlist }}";
+  let sseWorked = false;
+
+  // Try SSE first — fall back to POST if it errors within 5 seconds
+  const src = new EventSource('/api/backtest/stream?tickers='+encodeURIComponent(TICKERS));
+  const sseTimeout = setTimeout(() => {
+    if (!sseWorked) {
+      src.close();
+      document.getElementById('tickerPills').innerHTML='';
+      runPostFallback(btn);
+    }
+  }, 5000);
+
+  src.onmessage=e=>{
+    sseWorked=true;
+    clearTimeout(sseTimeout);
+    const msg=JSON.parse(e.data);
+    if (msg.type==='start') spawnPills(msg.tickers);
+    if (msg.type==='result') handleResult(msg.result, msg.completed, msg.total, msg.elapsed);
+    if (msg.type==='done') { src.close(); finishUI(msg.elapsed); }
+    if (msg.type==='error') {
+      src.close();
+      document.getElementById('progressLabel').textContent='Stream error: '+msg.message;
+      btn.disabled=false;
+    }
+  };
+
+  src.onerror=()=>{
+    if (!sseWorked) {
+      clearTimeout(sseTimeout);
+      src.close();
+      document.getElementById('tickerPills').innerHTML='';
+      runPostFallback(btn);
+    } else {
+      src.close();
+    }
+  };
+}
+
+function ensureSections() {
+  if (document.getElementById('portfolioSummarySection')) return;
+  document.getElementById('resultsArea').innerHTML=`
+    <div id="portfolioSummarySection" style="margin-bottom:32px"></div>
+    <div class="section-title">Equity curves + diagnostics — rendering as results arrive</div>
+    <div class="ticker-grid" id="tickerGrid"></div>
+    <div class="section-title" id="tableTitle" style="display:none">Ranked results</div>
+    <div class="table-wrap" id="tableWrap" style="display:none">
+      <table>
+        <thead><tr>
+          <th>Rank</th><th>Ticker</th><th>Verdict</th>
+          <th class="r">Total return</th><th class="r">Win rate</th>
+          <th class="r">Avg win/trade</th><th class="r">Avg loss/trade</th>
+          <th class="r">Max DD</th><th class="r">Sharpe</th>
+          <th class="r">Trades</th><th class="r">Stopped</th><th class="r">Avg ATR stop</th>
+        </tr></thead>
+        <tbody id="summaryTbody"></tbody>
+      </table>
+    </div>`;
+}
+
+function renderTickerCard(r) {
+  ensureSections();
+  const grid=document.getElementById('tickerGrid');
+  const card=document.createElement('div');
+  if (r.error) {
+    card.className='ticker-card no-data';
+    card.textContent=r.ticker+' — '+r.error;
+    grid.appendChild(card); return;
+  }
+  const s=r.stats, d=r.diagnostics||{};
+  const stopBadge=s.stopped_count>0?`<span class="stop-badge">⏹ ${s.stopped_count} stopped early</span>`:'';
+
+  card.className='ticker-card';
+  card.innerHTML=`
+    <div class="card-header">
+      <div class="card-ticker">${r.ticker}${stopBadge}</div>
+      <div class="card-return ${colCls(s.total_return)}">${fmtPct(s.total_return)} total return</div>
+    </div>
+    <div class="card-stats">
+      <div class="mini-stat"><div class="ml">Win rate</div><div class="mv ${s.win_rate>=55?'up':'neu'}">${s.win_rate.toFixed(1)}%</div></div>
+      <div class="mini-stat"><div class="ml">Sharpe</div><div class="mv ${s.sharpe>=1?'up':s.sharpe>=0?'amb':'down'}">${s.sharpe.toFixed(2)}</div></div>
+      <div class="mini-stat"><div class="ml">Avg win/trade</div><div class="mv up">${fmtPct(s.avg_win)}</div></div>
+      <div class="mini-stat"><div class="ml">Avg loss/trade</div><div class="mv down">${fmtPct(s.avg_loss)}</div></div>
+      <div class="mini-stat"><div class="ml">Max drawdown</div><div class="mv down">${fmtPct(s.max_drawdown)}</div></div>
+      <div class="mini-stat"><div class="ml">Avg hold</div><div class="mv neu">${s.avg_hold_days}d of 10d max</div></div>
+      <div class="mini-stat"><div class="ml">Trades</div><div class="mv neu">${s.total_trades}</div></div>
+      <div class="mini-stat"><div class="ml">Signals/yr</div><div class="mv neu">${s.signal_freq}</div></div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart_${r.ticker}"></canvas></div>
+    ${buildDiagPanel(d)}
+  `;
+  grid.appendChild(card);
+  renderChart(r);
+}
+
+function buildDiagPanel(d) {
+  if (!d || !d.insights || !d.insights.length) return '';
+  const vc=verdictClass(d.verdict||'');
+  const items=d.insights.map(ins=>`
+    <div class="diag-item">
+      <div class="diag-dot ${ins.helpful?'good':'bad'}"></div>
+      <div>
+        <div class="diag-label">${ins.label}</div>
+        <div class="diag-value">${ins.value}</div>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="diag-panel">
+      <div class="diag-header">
+        <div class="diag-title">Diagnostic analysis</div>
+        <span class="verdict-badge ${vc}">${d.verdict||'—'}</span>
+      </div>
+      <div class="diag-grid">${items}</div>
+    </div>`;
+}
+
+function renderPortfolioStats() {
+  const valid=allResults.filter(r=>r.stats);
+  if (!valid.length) return;
+  const avg=k=>valid.reduce((s,r)=>s+r.stats[k],0)/valid.length;
+  const totalStopped=valid.reduce((s,r)=>s+(r.stats.stopped_count||0),0);
+  const totalTrades=valid.reduce((s,r)=>s+r.stats.total_trades,0);
+  document.getElementById('portfolioSummarySection').innerHTML=`
+    <div class="section-title" style="margin-bottom:16px">Portfolio summary</div>
+    <div class="portfolio-summary">
+      <div class="stat-card"><div class="label">Avg total return</div><div class="value ${colCls(avg('total_return'))}">${fmtPct(avg('total_return'))}</div><div class="sub">across ${valid.length} tickers</div></div>
+      <div class="stat-card"><div class="label">Avg win rate</div><div class="value ${avg('win_rate')>=55?'up':'neu'}">${avg('win_rate').toFixed(1)}%</div><div class="sub">of all trades</div></div>
+      <div class="stat-card"><div class="label">Avg Sharpe</div><div class="value ${avg('sharpe')>=1?'up':avg('sharpe')>=0?'amb':'down'}">${avg('sharpe').toFixed(2)}</div><div class="sub">≥ 1.0 is strong</div></div>
+      <div class="stat-card"><div class="label">Avg max drawdown</div><div class="value down">${fmtPct(avg('max_drawdown'))}</div><div class="sub">worst equity drop</div></div>
+      <div class="stat-card"><div class="label">Total trades</div><div class="value neu">${totalTrades}</div><div class="sub">${totalStopped} stopped early</div></div>
+      <div class="stat-card"><div class="label">Avg hold period</div><div class="value neu">${avg('avg_hold_days').toFixed(1)}d</div><div class="sub">of ${10}d max</div></div>
+    </div>`;
+}
+
+function renderSummaryTable() {
+  const valid=allResults.filter(r=>r.stats).sort((a,b)=>b.stats.total_return-a.stats.total_return);
+  if (!valid.length) return;
+  const tbody=document.getElementById('summaryTbody');
+  valid.forEach((r,i)=>{
+    const s=r.stats, d=r.diagnostics||{};
+    const rk=i===0?'<span class="rank rg">1</span>':i===1?'<span class="rank rs">2</span>':i===2?'<span class="rank rb">3</span>':`<span class="mono neu">${i+1}</span>`;
+    const vc=verdictClass(d.verdict||'');
+    tbody.innerHTML+=`<tr>
+      <td>${rk}</td>
+      <td class="mono">${r.ticker}</td>
+      <td><span class="verdict-badge ${vc}" style="font-size:10px">${(d.verdict||'—').split('—')[0].trim()}</span></td>
+      <td class="r mono ${colCls(s.total_return)}">${fmtPct(s.total_return)}</td>
+      <td class="r mono ${s.win_rate>=55?'up':'neu'}">${s.win_rate.toFixed(1)}%</td>
+      <td class="r mono up">${fmtPct(s.avg_win)}</td>
+      <td class="r mono down">${fmtPct(s.avg_loss)}</td>
+      <td class="r mono down">${fmtPct(s.max_drawdown)}</td>
+      <td class="r mono ${s.sharpe>=1?'up':s.sharpe>=0?'amb':'down'}">${s.sharpe.toFixed(2)}</td>
+      <td class="r mono neu">${s.total_trades}</td>
+      <td class="r mono neu">${s.stopped_count||0}</td>
+      <td class="r mono amb">${s.avg_atr_stop ? '+' + s.avg_atr_stop.toFixed(1) + '%' : '—'}</td>
+    </tr>`;
+  });
+  document.getElementById('tableTitle').style.display='block';
+  document.getElementById('tableWrap').style.display='block';
+}
+
+function renderChart(r) {
+  const ctx=document.getElementById('chart_'+r.ticker);
+  if (!ctx||!r.equity_curve?.length) return;
+  const labels=r.equity_curve.map(p=>p.date);
+  const values=r.equity_curve.map(p=>(p.equity-1)*100);
+  const isPos=values[values.length-1]>=0;
+  new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Equity',data:values,borderColor:isPos?'#2ecc8a':'#e05555',backgroundColor:isPos?'rgba(46,204,138,0.07)':'rgba(224,85,85,0.07)',borderWidth:1.5,pointRadius:0,fill:true,tension:0.3},
+      {label:'Signal',data:labels.map((_,i)=>r.equity_curve[i].signal?values[i]:null),borderColor:'transparent',backgroundColor:'#f0a040',pointRadius:3,pointStyle:'circle',showLine:false,spanGaps:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:400},
+      plugins:{
+        legend:{display:false},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#1a1e25',borderColor:'#2e3540',borderWidth:1,titleColor:'#8896aa',bodyColor:'#e2e6ed',titleFont:{family:'DM Mono',size:11},bodyFont:{family:'DM Mono',size:12},
+          callbacks:{label:c=>{if(c.datasetIndex===0)return ` ${c.parsed.y>=0?'+':''}${c.parsed.y.toFixed(2)}%`;if(c.parsed.y!=null)return ' ▲ signal';return null;}}}
+      },
+      scales:{
+        x:{ticks:{color:'#5a6478',font:{family:'DM Mono',size:10},maxTicksLimit:6,maxRotation:0},grid:{color:'#1a1e25'}},
+        y:{ticks:{color:'#5a6478',font:{family:'DM Mono',size:10},callback:v=>(v>=0?'+':'')+v.toFixed(1)+'%'},grid:{color:'#1a1e25'}}
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>

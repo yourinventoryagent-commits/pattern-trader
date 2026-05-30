@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Macro Backtest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --bg:#0d0f12;--surface:#13161b;--surface2:#1a1e25;--border:#22272f;--border2:#2e3540;
+      --text:#e2e6ed;--muted:#5a6478;--subtle:#8896aa;
+      --green:#2ecc8a;--green-dim:#1a4a35;--red:#e05555;--red-dim:#4a1f1f;
+      --amber:#f0a040;--amber-dim:#3d2a10;--blue:#4a9eff;--blue-dim:#0f2a4a;
+      --radius:8px;--mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+    .shell{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+
+    header{display:flex;align-items:baseline;gap:16px;margin-bottom:28px;border-bottom:1px solid var(--border);padding-bottom:20px}
+    header h1{font-family:var(--mono);font-size:20px;font-weight:500}
+    header h1 span{color:var(--amber)}
+    .header-sub{font-size:12px;color:var(--muted);font-family:var(--mono)}
+    .header-links{margin-left:auto;display:flex;gap:16px}
+    .header-link{font-size:12px;color:var(--blue);font-family:var(--mono);text-decoration:none}
+
+    .controls{display:flex;gap:12px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+    .window-select{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 12px;outline:none}
+    .btn{padding:10px 22px;border-radius:var(--radius);border:none;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s;white-space:nowrap}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--amber);color:#1a0f00}
+    .btn-primary:hover{opacity:.88}
+    .btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+    .warning{background:#1e1a0e;border:1px solid #4a3a10;border-radius:var(--radius);padding:12px 16px;font-size:12px;color:var(--amber);margin-bottom:24px;font-family:var(--mono)}
+
+    .progress-wrap{margin-bottom:28px;display:none}
+    .progress-wrap.active{display:block}
+    .progress-header{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:8px}
+    .progress-track{height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+    .progress-fill{height:4px;background:var(--amber);border-radius:2px;transition:width .4s ease;width:0%}
+
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}
+    .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+    .stat-label{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+    .stat-value{font-family:var(--mono);font-size:24px;font-weight:500}
+    .stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+    .up{color:var(--green)}.down{color:var(--red)}.neu{color:var(--subtle)}.amb{color:var(--amber)}
+
+    .section-title{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+
+    .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+    .chart-title{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px}
+    .chart-wrap{position:relative;height:240px}
+
+    .table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+    th{text-align:left;padding:9px 12px;font-family:var(--mono);font-size:10px;font-weight:400;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+    tbody tr{border-bottom:1px solid var(--border)}
+    tbody tr:last-child{border-bottom:none}
+    tbody tr:hover{background:var(--surface)}
+    td{padding:9px 12px;vertical-align:middle}
+    .mono{font-family:var(--mono)}
+    .r{text-align:right}
+
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:500}
+    .badge-up{background:var(--green-dim);color:var(--green)}
+    .badge-down{background:var(--red-dim);color:var(--red)}
+    .badge-correct{background:var(--green-dim);color:var(--green)}
+    .badge-wrong{background:var(--red-dim);color:var(--red)}
+    .badge-na{background:var(--surface2);color:var(--muted)}
+
+    .empty{text-align:center;padding:60px;color:var(--muted);font-family:var(--mono);font-size:13px}
+
+    .calibration-insight{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:24px;font-size:13px;line-height:1.7;color:var(--subtle)}
+    .calibration-insight strong{color:var(--text)}
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <h1>Macro<span>Backtest</span></h1>
+    <div class="header-sub">walk-forward validation 2000–2023 · no lookahead</div>
+    <div class="header-links">
+      <a class="header-link" href="http://localhost:5002">macro engine →</a>
+      <a class="header-link" href="http://localhost:5003">journal →</a>
+    </div>
+  </header>
+
+  <div class="warning">
+    ⚠ This backtest uses only data available at each test date — no lookahead bias.
+    The engine runs exactly as in live trading, sliced to the test date.
+    Expect 5–15 minutes for a full run (46 test dates × full analogue search).
+  </div>
+
+  <div class="controls">
+    <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Pattern window</span>
+    <select class="window-select" id="windowSelect">
+      <option value="126">6 months (126 days)</option>
+      <option value="189">9 months (189 days)</option>
+      <option value="252" selected>12 months (252 days)</option>
+    </select>
+    <button class="btn btn-primary" id="runBtn" onclick="runBacktest()">
+      Run Validation Backtest
+    </button>
+    <span id="elapsedDisplay" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+  </div>
+
+  <!-- Tab switcher -->
+  <div style="display:flex;gap:2px;margin-bottom:24px;border-bottom:1px solid var(--border)">
+    <div id="tab-dir-btn" class="bt active" onclick="switchTab('direction')"
+         style="padding:10px 18px;font-family:var(--mono);font-size:12px;cursor:pointer;
+                color:var(--text);border-bottom:2px solid var(--amber);margin-bottom:-1px">
+      Phase 1+2 Direction
+    </div>
+    <div id="tab-p3-btn" class="bt" onclick="switchTab('panel3')"
+         style="padding:10px 18px;font-family:var(--mono);font-size:12px;cursor:pointer;
+                color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px">
+      Panel 3 Sector Rotation
+    </div>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-header">
+      <span id="progressLabel">Initialising...</span>
+      <span id="progressCount"></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <!-- Direction backtest tab -->
+  <div id="tab-direction">
+  <div id="resultsArea">
+    <div class="empty">
+      Runs the Phase 1+2 macro analogue engine at every 6-month interval from 2000 to 2023.
+      At each date, uses only historical data — no lookahead. Measures whether the engine
+      correctly predicted SPY direction and the top sector.
+    </div>
+  </div>
+  </div><!-- end tab-direction -->
+
+  <!-- Panel 3 sector rotation backtest tab -->
+  <div id="tab-panel3" style="display:none">
+
+    <div class="warning" style="border-color:rgba(74,158,255,.3);background:rgba(74,158,255,.05);color:var(--blue)">
+      Tests Panel 3's method: given the top analogues at each date, does investing in the sector
+      that historically led in those analogue periods outperform SPY?
+      Only uses post-1998 ETF data (no proxy baskets). Test window: 2002–2022.
+    </div>
+
+    <div class="controls" style="margin-bottom:24px">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Pattern window</span>
+      <select class="window-select" id="p3WindowSelect">
+        <option value="126">6 months (126 days)</option>
+        <option value="189">9 months (189 days)</option>
+        <option value="252" selected>12 months (252 days)</option>
+      </select>
+      <button class="btn btn-primary" id="p3RunBtn" onclick="runPanel3Backtest()"
+              style="background:var(--blue);color:#fff">
+        Run Panel 3 Validation
+      </button>
+      <span id="p3ElapsedDisplay" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+    </div>
+
+    <div class="progress-wrap" id="p3ProgressWrap">
+      <div class="progress-header">
+        <span id="p3ProgressLabel">Initialising...</span>
+        <span id="p3ProgressCount"></span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="p3ProgressFill"></div></div>
+    </div>
+
+    <div id="panel3ResultsArea">
+      <div class="empty">
+        Tests whether the Panel 3 sector rotation method adds value.
+        At each test date from 2002–2022, the full engine runs, identifies
+        the top 3 analogues, computes the Panel 3 sector ranking from those
+        analogues' historical forward periods, then checks if that sector
+        actually outperformed SPY over the next 12 months.
+      </div>
+    </div>
+
+  </div><!-- end tab-panel3 -->
+
+</div>
+
+<script>
+let allResults = [], summaryData = null;
+let elapsedTimer = null, startTime = null;
+let dirChart = null, calChart = null, sectorChart = null;
+
+const fmtPct = (v, d=1) => v == null ? '—' : (v >= 0 ? '+' : '') + Number(v*100).toFixed(d) + '%';
+const fmtPctRaw = (v, d=1) => v == null ? '—' : (v >= 0 ? '+' : '') + Number(v).toFixed(d) + '%';
+const colorCls = v => v == null ? 'neu' : v > 0 ? 'up' : v < 0 ? 'down' : 'neu';
+
+function runBacktest() {
+  const btn    = document.getElementById('runBtn');
+  const window = document.getElementById('windowSelect').value;
+  btn.disabled = true;
+  allResults   = [];
+  summaryData  = null;
+  startTime    = Date.now();
+
+  document.getElementById('progressWrap').classList.add('active');
+  document.getElementById('progressLabel').textContent = 'Fetching SPY, FRED, and sector data...';
+  document.getElementById('progressFill').style.width  = '0%';
+  document.getElementById('progressCount').textContent  = '';
+  document.getElementById('elapsedDisplay').textContent = '';
+  document.getElementById('resultsArea').innerHTML = '';
+
+  elapsedTimer = setInterval(() => {
+    document.getElementById('elapsedDisplay').textContent =
+      ((Date.now() - startTime) / 1000).toFixed(0) + 's elapsed';
+  }, 1000);
+
+  const src = new EventSource('/api/backtest/stream?window=' + window);
+
+  src.onmessage = e => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'start') {
+      document.getElementById('progressLabel').textContent =
+        'Running ' + msg.total + ' test dates (every 6 months, 2000–2023)...';
+    }
+
+    if (msg.type === 'result') {
+      allResults.push(msg.result);
+      const pct = msg.completed / msg.total * 100;
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressCount').textContent =
+        msg.completed + ' / ' + msg.total + ' · ' + msg.result.test_date;
+      document.getElementById('progressLabel').textContent =
+        'Tested ' + msg.result.test_date + ' → ' +
+        (msg.result.predicted_dir || '?') +
+        (msg.result.correct_12mo === true  ? ' ✓' :
+         msg.result.correct_12mo === false ? ' ✗' : '');
+    }
+
+    if (msg.type === 'summary') {
+      summaryData = msg.data;
+      renderResults();
+    }
+
+    if (msg.type === 'done') {
+      src.close();
+      clearInterval(elapsedTimer);
+      document.getElementById('progressFill').style.width = '100%';
+      document.getElementById('progressLabel').textContent =
+        'Complete in ' + msg.elapsed + 's';
+      document.getElementById('elapsedDisplay').textContent =
+        'Finished in ' + msg.elapsed + 's';
+      btn.disabled = false;
+    }
+
+    if (msg.type === 'error') {
+      src.close();
+      clearInterval(elapsedTimer);
+      document.getElementById('progressLabel').textContent = 'Error: ' + msg.message;
+      btn.disabled = false;
+    }
+  };
+
+  src.onerror = () => {
+    src.close();
+    clearInterval(elapsedTimer);
+    document.getElementById('progressLabel').textContent = 'Connection error — check server';
+    btn.disabled = false;
+  };
+}
+
+function renderResults() {
+  if (!summaryData) return;
+  const s = summaryData;
+
+  // -- Summary stats --------------------------------------------------------
+  const acc12  = s.dir_acc_12mo;
+  const acc6   = s.dir_acc_6mo;
+  const secAcc = s.sector_acc_12mo;
+
+  const accColor = v => v == null ? 'neu' : v >= 65 ? 'up' : v >= 55 ? 'amb' : 'down';
+
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Direction accuracy 12mo</div>
+        <div class="stat-value ${accColor(acc12)}" id="acc12">${acc12 != null ? acc12 + '%' : '—'}</div>
+        <div class="stat-sub">${s.tests_with_pred} test dates</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Direction accuracy 6mo</div>
+        <div class="stat-value ${accColor(acc6)}">${acc6 != null ? acc6 + '%' : '—'}</div>
+        <div class="stat-sub">earlier horizon</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sector accuracy 12mo</div>
+        <div class="stat-value ${accColor(secAcc)}">${secAcc != null ? secAcc + '%' : '—'}</div>
+        <div class="stat-sub">top sector correct</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">UP calls correct</div>
+        <div class="stat-value ${accColor(s.up_accuracy)}">${s.up_accuracy != null ? s.up_accuracy + '%' : '—'}</div>
+        <div class="stat-sub">${s.up_calls} UP predictions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DOWN calls correct</div>
+        <div class="stat-value ${accColor(s.down_accuracy)}">${s.down_accuracy != null ? s.down_accuracy + '%' : '—'}</div>
+        <div class="stat-sub">${s.down_calls} DOWN predictions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Prediction correlation</div>
+        <div class="stat-value ${s.calibration?.correlation > 0.4 ? 'up' : s.calibration?.correlation > 0.2 ? 'amb' : 'down'}">
+          ${s.calibration?.correlation != null ? 'r=' + s.calibration.correlation.toFixed(2) : '—'}
+        </div>
+        <div class="stat-sub">predicted vs actual return</div>
+      </div>
+    </div>
+
+    <div id="interpretationBox"></div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">Direction predictions vs actual SPY returns</div>
+        <div class="chart-wrap"><canvas id="calChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Accuracy over time — rolling correctness</div>
+        <div class="chart-wrap"><canvas id="dirChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">Sector prediction accuracy by sector</div>
+        <div class="chart-wrap"><canvas id="sectorChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Predicted vs actual SPY 12mo return</div>
+        <div class="chart-wrap"><canvas id="scatterChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-title">All test dates — detailed results</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Test date</th>
+          <th>Macro regime</th>
+          <th>Predicted</th>
+          <th>Predicted return</th>
+          <th>Actual 6mo</th>
+          <th>Actual 12mo</th>
+          <th>Dir correct 6mo</th>
+          <th>Dir correct 12mo</th>
+          <th>Pred sector</th>
+          <th>Actual best sector</th>
+          <th>Sector correct</th>
+          <th>Top analogue</th>
+        </tr></thead>
+        <tbody id="resultsTableBody"></tbody>
+      </table>
+    </div>`;
+
+  renderTable();
+  renderCharts();
+  renderInterpretation();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('resultsTableBody');
+  tbody.innerHTML = allResults.map(r => {
+    const m = r.macro_snap;
+    const macroStr = m
+      ? `Fed ${m.fed_funds.toFixed(1)}% · YC ${m.yield_curve.toFixed(2)}% · CPI ${m.cpi_yoy.toFixed(1)}%`
+      : '—';
+
+    const topA = r.top_analogues?.[0];
+    const topAStr = topA
+      ? `${topA.start_date.slice(0,7)} (${(topA.combined*100).toFixed(0)}%)`
+      : '—';
+
+    function badge(v) {
+      if (v === true)  return '<span class="badge badge-correct">✓ Yes</span>';
+      if (v === false) return '<span class="badge badge-wrong">✗ No</span>';
+      return '<span class="badge badge-na">—</span>';
+    }
+
+    return `<tr>
+      <td class="mono">${r.test_date}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${macroStr}</td>
+      <td><span class="badge badge-${(r.predicted_dir||'').toLowerCase()}">${r.predicted_dir || '—'}</span></td>
+      <td class="mono r ${colorCls(r.predicted_return)}">${fmtPct(r.predicted_return)}</td>
+      <td class="mono r ${colorCls(r.actual_spy_6mo)}">${fmtPct(r.actual_spy_6mo)}</td>
+      <td class="mono r ${colorCls(r.actual_spy_12mo)}">${fmtPct(r.actual_spy_12mo)}</td>
+      <td>${badge(r.correct_6mo)}</td>
+      <td>${badge(r.correct_12mo)}</td>
+      <td class="mono">${r.predicted_sector || '—'}</td>
+      <td class="mono">${r.best_sector_12mo || '—'}</td>
+      <td>${badge(r.sector_correct_12mo)}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${topAStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderCharts() {
+  const s = summaryData;
+
+  // 1. Calibration: predicted return vs actual 12mo return (scatter)
+  if (s.calibration?.pairs?.length) {
+    const pairs = s.calibration.pairs;
+    const ctx = document.getElementById('calChart').getContext('2d');
+    if (calChart) { calChart.destroy(); calChart = null; }
+    calChart = new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Predicted vs Actual',
+          data: pairs.map(p => ({x: p[0]*100, y: p[1]*100})),
+          backgroundColor: 'rgba(74,158,255,0.6)',
+          pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: {
+            label: c => `Predicted: ${c.parsed.x.toFixed(1)}% → Actual: ${c.parsed.y.toFixed(1)}%`
+          }}
+        },
+        scales: {
+          x: { title: { display: true, text: 'Predicted return (%)', color:'#5a6478', font:{size:10} },
+               ticks: { color:'#5a6478', font:{family:'DM Mono',size:10} },
+               grid: { color:'#1a1e25' } },
+          y: { title: { display: true, text: 'Actual 12mo return (%)', color:'#5a6478', font:{size:10} },
+               ticks: { color:'#5a6478', font:{family:'DM Mono',size:10} },
+               grid: { color:'#1a1e25' } }
+        }
+      }
+    });
+  }
+
+  // 2. Accuracy over time — was each call correct?
+  const sorted = [...allResults].sort((a,b) => a.test_date.localeCompare(b.test_date));
+  const labels = sorted.map(r => r.test_date.slice(0,7));
+  const correctness = sorted.map(r =>
+    r.correct_12mo === true ? 1 : r.correct_12mo === false ? 0 : null);
+
+  // Rolling 4-period accuracy
+  const rolling = correctness.map((_, i) => {
+    const window = correctness.slice(Math.max(0, i-3), i+1).filter(v => v !== null);
+    return window.length ? window.reduce((a,b) => a+b, 0) / window.length * 100 : null;
+  });
+
+  const ctx2 = document.getElementById('dirChart').getContext('2d');
+  if (dirChart) { dirChart.destroy(); dirChart = null; }
+  dirChart = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Rolling accuracy (4-period)',
+          data: rolling, borderColor: 'var(--amber)', borderWidth: 2,
+          pointRadius: 0, fill: false, tension: 0.3, spanGaps: true },
+        { label: '50% baseline', data: labels.map(() => 50),
+          borderColor: 'rgba(90,100,120,0.4)', borderWidth: 1,
+          borderDash: [4,4], pointRadius: 0, fill: false },
+        { label: 'Individual calls',
+          data: correctness.map(v => v === null ? null : v * 100),
+          backgroundColor: correctness.map(v =>
+            v === 1 ? 'rgba(46,204,138,0.5)' :
+            v === 0 ? 'rgba(224,85,85,0.5)' : 'transparent'),
+          type: 'scatter', pointRadius: 6, showLine: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { mode:'index', intersect:false } },
+      scales: {
+        x: { ticks: { color:'#5a6478', font:{family:'DM Mono',size:10}, maxTicksLimit:8 },
+             grid: { color:'#1a1e25' } },
+        y: { min: 0, max: 100,
+             ticks: { color:'#5a6478', font:{family:'DM Mono',size:10},
+                      callback: v => v + '%' },
+             grid: { color:'#1a1e25' } }
+      }
+    }
+  });
+
+  // 3. Sector accuracy by sector
+  const sectorCounts = {};
+  const sectorCorrect = {};
+  allResults.forEach(r => {
+    const best = r.best_sector_12mo;
+    const pred = r.predicted_sector;
+    if (!best) return;
+    sectorCounts[best]  = (sectorCounts[best]  || 0) + 1;
+    sectorCorrect[best] = (sectorCorrect[best] || 0) + (pred === best ? 1 : 0);
+  });
+  const secLabels = Object.keys(sectorCounts);
+  const secAccs   = secLabels.map(s =>
+    sectorCounts[s] ? (sectorCorrect[s] || 0) / sectorCounts[s] * 100 : 0);
+  const secTotals = secLabels.map(s => sectorCounts[s] || 0);
+
+  const ctx3 = document.getElementById('sectorChart').getContext('2d');
+  if (sectorChart) { sectorChart.destroy(); sectorChart = null; }
+  sectorChart = new Chart(ctx3, {
+    type: 'bar',
+    data: {
+      labels: secLabels,
+      datasets: [
+        { label: 'Times best sector',
+          data: secTotals,
+          backgroundColor: 'rgba(74,158,255,0.3)',
+          yAxisID: 'y1' },
+        { label: 'Engine predicted correctly (%)',
+          data: secAccs,
+          backgroundColor: secAccs.map(v =>
+            v >= 60 ? 'rgba(46,204,138,0.6)' :
+            v >= 40 ? 'rgba(240,160,64,0.6)' : 'rgba(224,85,85,0.6)'),
+          yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color:'#5a6478', font:{family:'DM Mono',size:10} },
+             grid: { color:'#1a1e25' } },
+        y1: { position:'left', ticks: { color:'#5a6478', font:{family:'DM Mono',size:10} },
+              grid: { color:'#1a1e25' }, title:{display:true,text:'Count',color:'#5a6478',font:{size:10}} },
+        y2: { position:'right', min:0, max:100,
+              ticks: { color:'#5a6478', font:{family:'DM Mono',size:10}, callback:v=>v+'%' },
+              grid: { display:false },
+              title:{display:true,text:'Accuracy %',color:'#5a6478',font:{size:10}} },
+      }
+    }
+  });
+
+  // 4. Predicted vs actual scatter (duplicate of cal chart but cleaner)
+  if (s.calibration?.pairs?.length) {
+    const pairs = s.calibration.pairs;
+    const ctx4 = document.getElementById('scatterChart').getContext('2d');
+    new Chart(ctx4, {
+      type: 'scatter',
+      data: {
+        datasets: [
+          { label: 'Test dates', data: pairs.map(p => ({x: p[0]*100, y: p[1]*100})),
+            backgroundColor: pairs.map(p =>
+              (p[0] > 0 && p[1] > 0) || (p[0] < 0 && p[1] < 0)
+                ? 'rgba(46,204,138,0.7)' : 'rgba(224,85,85,0.7)'),
+            pointRadius: 6 },
+          { label: 'Perfect calibration', type:'line',
+            data: [{x:-30,y:-30},{x:50,y:50}],
+            borderColor:'rgba(90,100,120,0.4)', borderDash:[4,4],
+            pointRadius:0, borderWidth:1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{ display:false },
+          tooltip:{ callbacks:{ label: c =>
+            `Pred: ${c.parsed.x.toFixed(1)}% · Actual: ${c.parsed.y.toFixed(1)}% · ${
+              (c.parsed.x>0&&c.parsed.y>0)||(c.parsed.x<0&&c.parsed.y<0)?'✓':'✗'}`
+          }}
+        },
+        scales: {
+          x: { ticks:{color:'#5a6478',font:{family:'DM Mono',size:10}},
+               grid:{color:'#1a1e25'},
+               title:{display:true,text:'Predicted (%)',color:'#5a6478',font:{size:10}} },
+          y: { ticks:{color:'#5a6478',font:{family:'DM Mono',size:10}},
+               grid:{color:'#1a1e25'},
+               title:{display:true,text:'Actual 12mo (%)',color:'#5a6478',font:{size:10}} }
+        }
+      }
+    });
+  }
+}
+
+function renderInterpretation() {
+  const s   = summaryData;
+  const acc = s.dir_acc_12mo;
+  const sec = s.sector_acc_12mo;
+  const cor = s.calibration?.correlation;
+  const bias = s.calibration?.bias;
+
+  let verdict, detail;
+
+  if (acc >= 70) {
+    verdict = 'Strong directional accuracy — the macro engine has genuine predictive skill.';
+    detail  = `${acc}% direction accuracy over 46 test dates significantly exceeds the 50% random baseline. `;
+  } else if (acc >= 60) {
+    verdict = 'Moderate directional accuracy — the engine has useful but imperfect signal.';
+    detail  = `${acc}% direction accuracy is above the 50% random baseline but not dominant. `;
+  } else if (acc >= 50) {
+    verdict = 'Marginal directional accuracy — treat signals as probabilistic context, not predictions.';
+    detail  = `${acc}% direction accuracy is barely above coin-flip. `;
+  } else {
+    verdict = 'Below random baseline — the engine may be miscalibrated for this window length.';
+    detail  = `${acc}% direction accuracy is below 50%. Try a different window length. `;
+  }
+
+  if (sec >= 60) detail += `Sector prediction is stronger at ${sec}% — the engine is better at identifying which sector leads than exact SPY direction. `;
+  else if (sec) detail += `Sector prediction at ${sec}% is weaker — sector rotation may need a larger analogue database. `;
+
+  if (bias !== undefined) {
+    if (Math.abs(bias) > 0.05) {
+      detail += `The engine ${bias > 0 ? 'over-estimates' : 'under-estimates'} returns by ~${Math.abs(bias*100).toFixed(1)}pp on average — apply a ${bias > 0 ? 'downward' : 'upward'} correction when interpreting forward return forecasts.`;
+    } else {
+      detail += 'Return magnitude estimates are well-calibrated — predicted and actual returns track closely.';
+    }
+  }
+
+  document.getElementById('interpretationBox').innerHTML = `
+    <div class="calibration-insight" style="margin-bottom:24px">
+      <strong>${verdict}</strong><br>${detail}
+    </div>`;
+}
+
+// =============================================================================
+// Tab switching
+// =============================================================================
+
+function switchTab(tab) {
+  document.getElementById('tab-direction').style.display = tab === 'direction' ? 'block' : 'none';
+  document.getElementById('tab-panel3').style.display    = tab === 'panel3'    ? 'block' : 'none';
+  const dirBtn = document.getElementById('tab-dir-btn');
+  const p3Btn  = document.getElementById('tab-p3-btn');
+  if (tab === 'direction') {
+    dirBtn.style.color = 'var(--text)'; dirBtn.style.borderBottomColor = 'var(--amber)';
+    p3Btn.style.color  = 'var(--muted)'; p3Btn.style.borderBottomColor = 'transparent';
+  } else {
+    p3Btn.style.color  = 'var(--text)'; p3Btn.style.borderBottomColor = 'var(--blue)';
+    dirBtn.style.color = 'var(--muted)'; dirBtn.style.borderBottomColor = 'transparent';
+  }
+}
+
+// =============================================================================
+// Panel 3 backtest
+// =============================================================================
+
+let p3Results = [], p3Summary = null, p3ElapsedTimer = null, p3Chart = null;
+
+function runPanel3Backtest() {
+  const btn    = document.getElementById('p3RunBtn');
+  const window = document.getElementById('p3WindowSelect').value;
+  btn.disabled = true;
+  p3Results    = [];
+  p3Summary    = null;
+
+  const p3Start = Date.now();
+  document.getElementById('p3ProgressWrap').classList.add('active');
+  document.getElementById('p3ProgressLabel').textContent = 'Fetching data and running Panel 3 validation...';
+  document.getElementById('p3ProgressFill').style.width  = '0%';
+  document.getElementById('p3ProgressCount').textContent  = '';
+  document.getElementById('panel3ResultsArea').innerHTML  = '';
+
+  p3ElapsedTimer = setInterval(() => {
+    document.getElementById('p3ElapsedDisplay').textContent =
+      ((Date.now() - p3Start) / 1000).toFixed(0) + 's elapsed';
+  }, 1000);
+
+  const src = new EventSource('/api/panel3/stream?window=' + window);
+
+  src.onmessage = e => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'result') {
+      if (!msg.result.skipped) p3Results.push(msg.result);
+      const pct = msg.completed / msg.total * 100;
+      document.getElementById('p3ProgressFill').style.width = pct + '%';
+      document.getElementById('p3ProgressCount').textContent =
+        msg.completed + ' / ' + msg.total;
+      document.getElementById('p3ProgressLabel').textContent =
+        'Tested ' + msg.result.test_date +
+        (msg.result.skipped ? ' (skipped)' :
+         msg.result.recommended_beat_spy === true  ? ' → beat SPY ✓' :
+         msg.result.recommended_beat_spy === false ? ' → missed ✗' : '');
+    }
+
+    if (msg.type === 'panel3_summary') {
+      p3Summary = msg.data;
+      renderPanel3Results();
+    }
+
+    if (msg.type === 'done') {
+      src.close();
+      clearInterval(p3ElapsedTimer);
+      document.getElementById('p3ProgressFill').style.width = '100%';
+      document.getElementById('p3ProgressLabel').textContent = 'Complete in ' + msg.elapsed + 's';
+      btn.disabled = false;
+    }
+
+    if (msg.type === 'error') {
+      src.close();
+      clearInterval(p3ElapsedTimer);
+      document.getElementById('p3ProgressLabel').textContent = 'Error: ' + msg.message;
+      btn.disabled = false;
+    }
+  };
+
+  src.onerror = () => {
+    src.close();
+    clearInterval(p3ElapsedTimer);
+    document.getElementById('p3ProgressLabel').textContent = 'Connection error';
+    btn.disabled = false;
+  };
+}
+
+function renderPanel3Results() {
+  if (!p3Summary || p3Summary.error) {
+    document.getElementById('panel3ResultsArea').innerHTML =
+      '<div class="empty">Insufficient data for Panel 3 validation.</div>';
+    return;
+  }
+
+  const s = p3Summary;
+  const beatColor  = v => v == null ? 'neu' : v >= 60 ? 'up' : v >= 45 ? 'amb' : 'down';
+  const rankColor  = v => v == null ? 'neu' : v <= 3 ? 'up' : v <= 6 ? 'amb' : 'down';
+  const relColor   = v => v == null ? 'neu' : v > 0 ? 'up' : 'down';
+
+  // Interpretation
+  const beat = s.beat_spy_rate;
+  const base = s.random_baseline;
+  const lift = beat != null && base != null ? (beat - base).toFixed(1) : null;
+  let verdict, detail;
+
+  if (beat >= base + 10) {
+    verdict = 'Panel 3 adds significant value — sector recommendations meaningfully outperform random.';
+    detail  = `The recommended sector beat SPY ${beat}% of the time vs a ${base.toFixed(1)}% random baseline — a +${lift}pp lift. The Panel 3 method is genuinely predictive.`;
+  } else if (beat >= base + 3) {
+    verdict = 'Panel 3 adds modest value — modest edge over random sector selection.';
+    detail  = `The recommended sector beat SPY ${beat}% of the time vs ${base.toFixed(1)}% baseline — a +${lift}pp lift. Useful but not dominant.`;
+  } else if (beat >= base - 3) {
+    verdict = 'Panel 3 is roughly equivalent to random sector selection.';
+    detail  = `The recommended sector beat SPY ${beat}% of the time vs ${base.toFixed(1)}% baseline. No meaningful edge from the sector rotation method.`;
+  } else {
+    verdict = 'Panel 3 underperforms random sector selection — the method needs improvement.';
+    detail  = `The recommended sector beat SPY only ${beat}% of the time vs ${base.toFixed(1)}% baseline. The analogue-based sector prediction may be counterproductive.`;
+  }
+
+  // By-sector table
+  const sectorRows = Object.entries(s.by_sector)
+    .sort((a,b) => (b[1].beat_rate||0) - (a[1].beat_rate||0))
+    .map(([ticker, d]) => `
+      <tr>
+        <td class="mono">${ticker}</td>
+        <td class="mono">${SECTOR_NAMES[ticker] || ticker}</td>
+        <td class="mono r">${d.times_recommended}</td>
+        <td class="mono r ${beatColor(d.beat_rate)}">${d.beat_rate != null ? d.beat_rate + '%' : '—'}</td>
+        <td class="mono r ${d.avg_rel > 0 ? 'up' : 'down'}">${d.avg_rel != null ? (d.avg_rel >= 0 ? '+' : '') + d.avg_rel.toFixed(1) + '%' : '—'}</td>
+      </tr>`).join('');
+
+  document.getElementById('panel3ResultsArea').innerHTML = `
+    <div class="stats-grid" style="margin-bottom:24px">
+      <div class="stat-card">
+        <div class="stat-label">Beat SPY rate</div>
+        <div class="stat-value ${beatColor(s.beat_spy_rate)}">${s.beat_spy_rate != null ? s.beat_spy_rate + '%' : '—'}</div>
+        <div class="stat-sub">vs ${s.random_baseline.toFixed(1)}% random baseline</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Lift over random</div>
+        <div class="stat-value ${lift > 3 ? 'up' : lift > 0 ? 'amb' : 'down'}">${lift != null ? (lift >= 0 ? '+' : '') + lift + 'pp' : '—'}</div>
+        <div class="stat-sub">percentage point improvement</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg relative return</div>
+        <div class="stat-value ${relColor(s.avg_rel_return)}">${s.avg_rel_return != null ? (s.avg_rel_return >= 0 ? '+' : '') + s.avg_rel_return.toFixed(1) + '%' : '—'}</div>
+        <div class="stat-sub">recommended sector vs SPY</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg sector rank</div>
+        <div class="stat-value ${rankColor(s.avg_rank)}">${s.avg_rank != null ? s.avg_rank.toFixed(1) + ' / 9' : '—'}</div>
+        <div class="stat-sub">1=best, 9=worst out of 9 sectors</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Got best sector</div>
+        <div class="stat-value ${beatColor(s.got_best_rate)}">${s.got_best_rate != null ? s.got_best_rate + '%' : '—'}</div>
+        <div class="stat-sub">exactly matched top sector</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Test dates</div>
+        <div class="stat-value neu">${s.total_tests}</div>
+        <div class="stat-sub">${s.skipped} skipped (no ETF data)</div>
+      </div>
+    </div>
+
+    <div class="calibration-insight" style="margin-bottom:24px">
+      <strong>${verdict}</strong><br>${detail}
+    </div>
+
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">Recommended sector actual relative return vs SPY over time</div>
+        <div class="chart-wrap"><canvas id="p3TimeChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Beat SPY rate by recommended sector</div>
+        <div class="chart-wrap"><canvas id="p3SectorChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section-title">Accuracy by recommended sector</div>
+    <div class="table-wrap" style="margin-bottom:24px">
+      <table>
+        <thead><tr>
+          <th>Sector</th><th>Name</th>
+          <th class="r">Times recommended</th>
+          <th class="r">Beat SPY %</th>
+          <th class="r">Avg relative return</th>
+        </tr></thead>
+        <tbody>${sectorRows}</tbody>
+      </table>
+    </div>
+
+    <div class="section-title">All test dates — Panel 3 detailed results</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Test date</th><th>Top recommendation</th>
+          <th class="r">P3 score</th>
+          <th class="r">Actual rel 12mo</th>
+          <th>Beat SPY?</th>
+          <th>Actual best</th>
+          <th class="r">Sector rank</th>
+          <th>Macro</th>
+        </tr></thead>
+        <tbody id="p3TableBody"></tbody>
+      </table>
+    </div>`;
+
+  // Render table
+  const tbody = document.getElementById('p3TableBody');
+  tbody.innerHTML = p3Results.map(r => {
+    const m = r.macro_snap;
+    const macroStr = m ? `Fed ${m.fed_funds.toFixed(1)}% YC ${m.yield_curve.toFixed(2)}%` : '—';
+    const relRet = r.recommended_rel_12mo;
+    const rankStr = r.sector_rank ? r.sector_rank + '/9' : '—';
+    const rankCls = r.sector_rank <= 3 ? 'up' : r.sector_rank <= 6 ? 'amb' : 'down';
+    function badge(v) {
+      if (v === true)  return '<span class="badge badge-correct">✓ Yes</span>';
+      if (v === false) return '<span class="badge badge-wrong">✗ No</span>';
+      return '<span class="badge badge-na">—</span>';
+    }
+    return `<tr>
+      <td class="mono">${r.test_date}</td>
+      <td class="mono" style="font-weight:500">${r.top_recommendation || '—'}</td>
+      <td class="mono r">${r.top_score != null ? (r.top_score*100).toFixed(1)+'%' : '—'}</td>
+      <td class="mono r ${relRet > 0 ? 'up' : relRet < 0 ? 'down' : 'neu'}">
+        ${relRet != null ? (relRet >= 0 ? '+' : '') + (relRet*100).toFixed(1)+'%' : '—'}
+      </td>
+      <td>${badge(r.recommended_beat_spy)}</td>
+      <td class="mono">${r.actual_best_sector || '—'}</td>
+      <td class="mono r ${rankCls}">${rankStr}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">${macroStr}</td>
+    </tr>`;
+  }).join('');
+
+  // Render charts
+  setTimeout(() => renderPanel3Charts(), 50);
+}
+
+const SECTOR_NAMES = {
+  XLK:'Technology', XLF:'Financials', XLE:'Energy', XLV:'Healthcare',
+  XLI:'Industrials', XLY:'Consumer Disc', XLP:'Cons Staples',
+  XLB:'Materials', XLU:'Utilities'
+};
+
+function renderPanel3Charts() {
+  // Chart 1: relative return over time
+  const labels = p3Results.map(r => r.test_date.slice(0,7));
+  const rels   = p3Results.map(r => r.recommended_rel_12mo != null ? r.recommended_rel_12mo * 100 : null);
+  const ctx1   = document.getElementById('p3TimeChart')?.getContext('2d');
+  if (ctx1) {
+    new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Relative return vs SPY',
+          data:  rels,
+          backgroundColor: rels.map(v => v > 0 ? 'rgba(46,204,138,0.6)' : 'rgba(224,85,85,0.6)'),
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{ display:false },
+          tooltip:{ callbacks:{ label: c => (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '% vs SPY' }}
+        },
+        scales: {
+          x: { ticks:{ color:'#5a6478', font:{family:'DM Mono',size:9}, maxTicksLimit:10 }, grid:{color:'#1a1e25'} },
+          y: { ticks:{ color:'#5a6478', font:{family:'DM Mono',size:10}, callback:v=>(v>=0?'+':'')+v+'%' }, grid:{color:'#1a1e25'} }
+        }
+      }
+    });
+  }
+
+  // Chart 2: beat rate by sector
+  const sectors = Object.entries(p3Summary.by_sector)
+    .sort((a,b) => (b[1].beat_rate||0) - (a[1].beat_rate||0));
+  const ctx2 = document.getElementById('p3SectorChart')?.getContext('2d');
+  if (ctx2 && sectors.length) {
+    new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: sectors.map(([k]) => k),
+        datasets: [
+          { label: 'Beat SPY %',
+            data: sectors.map(([,v]) => v.beat_rate || 0),
+            backgroundColor: sectors.map(([,v]) =>
+              (v.beat_rate||0) >= 60 ? 'rgba(46,204,138,0.6)' :
+              (v.beat_rate||0) >= 45 ? 'rgba(240,160,64,0.6)' : 'rgba(224,85,85,0.6)'),
+          },
+          { label: 'Random baseline',
+            data: sectors.map(() => p3Summary.random_baseline),
+            type: 'line', borderColor:'rgba(90,100,120,0.6)',
+            borderDash:[4,4], pointRadius:0, borderWidth:1.5,
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{ display:false } },
+        scales: {
+          x: { ticks:{ color:'#5a6478', font:{family:'DM Mono',size:10} }, grid:{color:'#1a1e25'} },
+          y: { min:0, max:100, ticks:{ color:'#5a6478', font:{family:'DM Mono',size:10}, callback:v=>v+'%' }, grid:{color:'#1a1e25'} }
+        }
+      }
+    });
+  }
+}
+
+</script>
+</body>
+</html>

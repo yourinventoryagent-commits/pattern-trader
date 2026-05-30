@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pattern Trader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #0d0f12;
+      --surface:    #13161b;
+      --surface2:   #1a1e25;
+      --border:     #22272f;
+      --border2:    #2e3540;
+      --text:       #e2e6ed;
+      --muted:      #5a6478;
+      --subtle:     #8896aa;
+      --green:      #2ecc8a;
+      --green-dim:  #1a4a35;
+      --red:        #e05555;
+      --red-dim:    #4a1f1f;
+      --amber:      #f0a040;
+      --amber-dim:  #3d2a10;
+      --blue:       #4a9eff;
+      --blue-dim:   #0f2a4a;
+      --radius:     8px;
+      --mono:       'DM Mono', monospace;
+      --sans:       'DM Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ── */
+    .shell {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    header h1 span { color: var(--green); }
+    .header-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .scan-time {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 28px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ticker-input {
+      flex: 1;
+      min-width: 260px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .ticker-input:focus { border-color: var(--blue); }
+
+    .btn {
+      padding: 10px 22px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: var(--green);
+      color: #0a1a12;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--subtle);
+      border: 1px solid var(--border2);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+
+    /* ── Status bar ── */
+    .status-bar {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 20px;
+      min-height: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .spinner {
+      width: 12px; height: 12px;
+      border: 1.5px solid var(--border2);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Summary row ── */
+    .summary {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .stat-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--subtle);
+    }
+    .stat-pill b { color: var(--text); font-weight: 500; }
+
+    /* ── Results table ── */
+    .results-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    thead tr {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    th.right, td.right { text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+      cursor: default;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface); }
+    tbody tr.signal-row:hover { cursor: pointer; }
+
+    td {
+      padding: 12px 14px;
+      vertical-align: middle;
+    }
+
+    /* ticker cell */
+    .ticker-cell {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .price-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* direction badge */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+    }
+    .badge-long  { background: var(--green-dim); color: var(--green); }
+    .badge-short { background: var(--red-dim);   color: var(--red); }
+    .badge-none  { background: var(--surface2);  color: var(--muted); }
+
+    /* numeric cells */
+    .num { font-family: var(--mono); }
+    .up   { color: var(--green); }
+    .down { color: var(--red); }
+    .neu  { color: var(--muted); }
+
+    /* ev score bar */
+    .ev-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ev-bar-bg {
+      flex: 1;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      min-width: 60px;
+    }
+    .ev-bar-fill {
+      height: 4px;
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    .ev-val {
+      font-family: var(--mono);
+      font-size: 12px;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    /* sim score */
+    .sim-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--blue-dim);
+      color: var(--blue);
+    }
+
+    /* no edge / error rows */
+    .dim-row td { color: var(--muted); }
+    .dim-row .ticker-cell { color: var(--subtle); }
+
+    /* ── Detail drawer ── */
+    .drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+    }
+    .drawer-overlay.open { display: block; }
+    .drawer {
+      position: fixed;
+      right: 0; top: 0; bottom: 0;
+      width: min(480px, 100vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border2);
+      padding: 28px 24px;
+      overflow-y: auto;
+      z-index: 101;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+    }
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .drawer-ticker {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+    }
+    .close-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      color: var(--muted);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .close-btn:hover { color: var(--text); }
+
+    .drawer-section {
+      margin-bottom: 24px;
+    }
+    .drawer-section h3 {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .kv {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+    }
+    .kv-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      margin-bottom: 4px;
+    }
+    .kv-value {
+      font-family: var(--mono);
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    /* match history list */
+    .match-list { display: flex; flex-direction: column; gap: 8px; }
+    .match-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .match-date { font-family: var(--mono); font-size: 12px; color: var(--subtle); }
+    .match-stats { display: flex; gap: 12px; font-family: var(--mono); font-size: 12px; }
+
+    /* ── Empty / error states ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    .empty-state .icon { font-size: 28px; margin-bottom: 12px; }
+
+    /* ── Tooltip legend ── */
+    .legend {
+      margin-top: 20px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .legend b { color: var(--subtle); font-weight: 400; }
+
+    @media (max-width: 700px) {
+      .hide-sm { display: none; }
+      .controls { flex-direction: column; }
+      .ticker-input { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <h1>Pattern<span>Trader</span></h1>
+    <div class="header-sub">21-day historical analogue engine</div>
+    <div class="scan-time" id="scanTime"></div>
+  </header>
+
+  <!-- Controls -->
+  <div class="controls">
+    <input
+      class="ticker-input"
+      id="tickerInput"
+      type="text"
+      value="{{ default_watchlist }}"
+      placeholder="AAPL, MSFT, GOOGL …"
+      spellcheck="false"
+    />
+    <button class="btn btn-primary" id="scanBtn" onclick="runScan()">Run Scan</button>
+    <button class="btn btn-ghost" onclick="resetWatchlist()">Reset</button>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <span id="statusMsg">Enter tickers above and click Run Scan.</span>
+  </div>
+
+  <!-- Summary pills (hidden until scan completes) -->
+  <div class="summary" id="summary" style="display:none"></div>
+
+  <!-- Results -->
+  <div id="resultsArea"></div>
+
+  <!-- Legend -->
+  <div class="legend" id="legend" style="display:none">
+    <span><b>Sim</b> — best pattern similarity score (price + volume weighted)</span>
+    <span><b>Matches</b> — historical windows above 90% threshold</span>
+    <span><b>Avg return</b> — ρ²-weighted expected move at +10 days</span>
+    <span><b>Win rate</b> — % of analogues that moved in signal direction</span>
+    <span><b>Drawdown</b> — median intra-window drawdown across matches</span>
+    <span><b>EV score</b> — expected value = win rate × avg win − loss rate × avg loss</span>
+  </div>
+
+</div>
+
+<!-- Detail drawer -->
+<div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-ticker" id="drawerTicker">—</div>
+    <button class="close-btn" onclick="closeDrawer()">✕</button>
+  </div>
+  <div id="drawerBody"></div>
+</div>
+
+<script>
+const DEFAULT = "{{ default_watchlist }}";
+let lastResults = [];
+
+function fmt(val, decimals=2, prefix='', suffix='') {
+  if (val == null || isNaN(val)) return '—';
+  return prefix + Number(val * 100).toFixed(decimals) + suffix;
+}
+function fmtPct(val) { return fmt(val, 1, '', '%'); }
+function fmtScore(val) {
+  if (val == null) return '—';
+  return (val * 100).toFixed(1) + '%';
+}
+function colorClass(val) {
+  if (val == null) return 'neu';
+  return val > 0 ? 'up' : val < 0 ? 'down' : 'neu';
+}
+
+async function runScan() {
+  const tickers = document.getElementById('tickerInput').value.trim();
+  if (!tickers) return;
+
+  const btn = document.getElementById('scanBtn');
+  const spinner = document.getElementById('spinner');
+  const statusMsg = document.getElementById('statusMsg');
+
+  btn.disabled = true;
+  spinner.classList.add('active');
+  statusMsg.textContent = 'Fetching data and scanning patterns…';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('legend').style.display = 'none';
+  document.getElementById('resultsArea').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tickers})
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    lastResults = data.results;
+    renderResults(data.results, data.scanned_at);
+  } catch(e) {
+    statusMsg.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  }
+}
+
+function renderResults(results, scannedAt) {
+  document.getElementById('scanTime').textContent = scannedAt ? 'Last scan: ' + scannedAt : '';
+
+  const signals   = results.filter(r => r.status === 'signal');
+  const noEdge    = results.filter(r => r.status === 'no_edge');
+  const noMatch   = results.filter(r => r.status === 'no_matches');
+  const errors    = results.filter(r => r.status === 'error');
+
+  // Status message
+  document.getElementById('statusMsg').textContent =
+    `Scan complete — ${signals.length} signal${signals.length !== 1 ? 's' : ''} found across ${results.length} tickers.`;
+
+  // Summary pills
+  const maxEV = signals.length ? Math.max(...signals.map(s => s.ev_score)) : null;
+  document.getElementById('summary').innerHTML = `
+    <div class="stat-pill">Tickers scanned: <b>${results.length}</b></div>
+    <div class="stat-pill">Signals: <b>${signals.length}</b></div>
+    <div class="stat-pill">No edge: <b>${noEdge.length}</b></div>
+    ${maxEV != null ? `<div class="stat-pill">Top EV: <b>${fmtPct(maxEV)}</b></div>` : ''}
+  `;
+  document.getElementById('summary').style.display = 'flex';
+  document.getElementById('legend').style.display = 'flex';
+
+  if (!results.length) {
+    document.getElementById('resultsArea').innerHTML =
+      `<div class="empty-state"><div class="icon">◌</div>No results returned.</div>`;
+    return;
+  }
+
+  // Build table
+  const rows = results.map((r, idx) => buildRow(r, idx)).join('');
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="results-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Ticker</th>
+            <th>Direction</th>
+            <th class="right hide-sm">Best sim</th>
+            <th class="right hide-sm">Matches</th>
+            <th class="right">Avg return</th>
+            <th class="right hide-sm">Win rate</th>
+            <th class="right hide-sm">Drawdown</th>
+            <th class="right">EV score</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function buildRow(r, idx) {
+  const isSignal = r.status === 'signal';
+  const rowClass = isSignal ? 'signal-row' : 'dim-row';
+  const onclick  = isSignal ? `openDrawer(${idx})` : '';
+  const rank     = isSignal ? `<b>${idx + 1}</b>` : '—';
+
+  const dirBadge = isSignal
+    ? `<span class="badge badge-${r.direction === 'LONG' ? 'long' : 'short'}">${r.direction}</span>`
+    : `<span class="badge badge-none">${r.status === 'no_edge' ? 'NO EDGE' : r.status === 'no_matches' ? 'NO DATA' : 'ERROR'}</span>`;
+
+  const sim = r.best_sim
+    ? `<span class="sim-pill">${fmtScore(r.best_sim)}</span>`
+    : '<span class="neu">—</span>';
+
+  const avgRet = isSignal
+    ? `<span class="num ${colorClass(r.avg_return)}">${fmtPct(r.avg_return)}</span>`
+    : '<span class="neu">—</span>';
+
+  const winRate = isSignal
+    ? `<span class="num ${r.win_rate >= 0.55 ? 'up' : 'neu'}">${fmtPct(r.win_rate)}</span>`
+    : '<span class="neu">—</span>';
+
+  const dd = isSignal
+    ? `<span class="num down">${fmtPct(r.avg_drawdown)}</span>`
+    : '<span class="neu">—</span>';
+
+  const evBar = isSignal ? buildEVBar(r.ev_score) : '<span class="neu">—</span>';
+
+  const matchCount = r.match_count != null ? r.match_count : '—';
+  const priceStr   = r.price ? `<div class="price-sub">$${r.price.toFixed(2)}</div>` : '';
+
+  return `
+    <tr class="${rowClass}" onclick="${onclick}">
+      <td class="num neu">${rank}</td>
+      <td>
+        <div class="ticker-cell">${r.ticker}</div>
+        ${priceStr}
+      </td>
+      <td>${dirBadge}</td>
+      <td class="right hide-sm">${sim}</td>
+      <td class="right hide-sm num neu">${matchCount}</td>
+      <td class="right">${avgRet}</td>
+      <td class="right hide-sm">${winRate}</td>
+      <td class="right hide-sm">${dd}</td>
+      <td class="right">${evBar}</td>
+    </tr>
+  `;
+}
+
+function buildEVBar(ev) {
+  if (ev == null) return '—';
+  // Normalise bar width: treat ±8% EV as full width
+  const pct   = Math.min(Math.abs(ev) / 0.08, 1) * 100;
+  const color = ev > 0 ? 'var(--green)' : 'var(--red)';
+  return `
+    <div class="ev-wrap">
+      <div class="ev-bar-bg">
+        <div class="ev-bar-fill" style="width:${pct.toFixed(1)}%;background:${color}"></div>
+      </div>
+      <span class="ev-val ${colorClass(ev)}">${fmtPct(ev)}</span>
+    </div>
+  `;
+}
+
+function openDrawer(idx) {
+  const r = lastResults[idx];
+  if (!r || r.status !== 'signal') return;
+
+  document.getElementById('drawerTicker').textContent = r.ticker;
+  document.getElementById('drawerBody').innerHTML = buildDrawerContent(r);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function buildDrawerContent(r) {
+  const fwdKeys = r.top_matches?.[0]?.forward ? Object.keys(r.top_matches[0].forward) : [];
+
+  const matchRows = (r.top_matches || []).map(m => {
+    const fwdValues = fwdKeys.map(k => {
+      const v = m.forward[k];
+      return `<span class="${colorClass(v)}">${fmtPct(v)} @+${k}d</span>`;
+    }).join(' ');
+    return `
+      <div class="match-item">
+        <span class="match-date">${m.date}</span>
+        <div class="match-stats">
+          <span class="sim-pill">${fmtScore(m.similarity)}</span>
+          ${fwdValues}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="drawer-section">
+      <h3>Signal summary</h3>
+      <div class="kv-grid">
+        <div class="kv">
+          <div class="kv-label">Direction</div>
+          <div class="kv-value ${r.direction === 'LONG' ? 'up' : 'down'}">${r.direction}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">EV score</div>
+          <div class="kv-value ${colorClass(r.ev_score)}">${fmtPct(r.ev_score)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Avg return (+10d)</div>
+          <div class="kv-value ${colorClass(r.avg_return)}">${fmtPct(r.avg_return)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Win rate</div>
+          <div class="kv-value ${r.win_rate >= 0.55 ? 'up' : 'neu'}">${fmtPct(r.win_rate)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Avg win</div>
+          <div class="kv-value up">${fmtPct(r.avg_win)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Avg loss</div>
+          <div class="kv-value down">${fmtPct(r.avg_loss)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Avg drawdown</div>
+          <div class="kv-value down">${fmtPct(r.avg_drawdown)}</div>
+        </div>
+        <div class="kv">
+          <div class="kv-label">Matches found</div>
+          <div class="kv-value neu">${r.match_count}</div>
+        </div>
+        <div class="kv" style="grid-column:span 2;background:var(--blue-dim);border-color:var(--blue)">
+          <div class="kv-label" style="color:var(--blue)">Suggested stop (analogue-informed)</div>
+          <div class="kv-value" style="color:var(--blue);font-size:20px">
+            ${r.suggested_stop ? fmtPct(r.suggested_stop) + ' below entry' : '—'}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Top historical analogues</h3>
+      <div class="match-list">${matchRows || '<div class="neu" style="font-size:12px">No match detail available.</div>'}</div>
+    </div>
+
+    <div class="drawer-section">
+      <h3>Notes</h3>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7">
+        Each analogue above is a historical 21-day window that matched the current
+        pattern with ≥90% composite similarity (70% price shape, 30% volume profile).
+        Forward returns shown are actual outcomes from that date.
+        This is not financial advice — always apply your own judgment before trading.
+      </p>
+    </div>
+  `;
+}
+
+function resetWatchlist() {
+  document.getElementById('tickerInput').value = DEFAULT;
+}
+
+// Allow Enter key to trigger scan
+document.getElementById('tickerInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runScan();
+});
+</script>
+</body>
+</html>

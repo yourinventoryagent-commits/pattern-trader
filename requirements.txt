@@ -1,0 +1,8 @@
+flask
+numpy
+pandas
+scipy
+yfinance
+fredapi
+python-dateutil
+python-dotenv

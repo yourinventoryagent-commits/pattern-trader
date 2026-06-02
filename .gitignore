@@ -37,3 +37,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Windows installer (do not commit)
+*.msix
